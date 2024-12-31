@@ -9,7 +9,7 @@
     "flatten": "npx hardhat flatten",
     "coverage": "npx hardhat coverage"
   },
-  "author": "Tadej Vengust",
+  "author": "Mitja Kjuder",
   "license": "ISC",
   "devDependencies": {
     "@nomiclabs/hardhat-etherscan": "^3.1.1",

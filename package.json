@@ -1,0 +1,29 @@
+{
+  "name": "ignite-market-contracts",
+  "version": "0.0.1",
+  "description": "Smart contract for Ignite Market.",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx hardhat test",
+    "build": "npx hardhat compile",
+    "flatten": "npx hardhat flatten",
+    "coverage": "npx hardhat coverage"
+  },
+  "author": "Tadej Vengust",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomiclabs/hardhat-etherscan": "^3.1.1",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "^4.3.4",
+    "ethereum-waffle": "^3.4.0",
+    "ethers": "^5.5.1",
+    "hardhat": "^2.6.8",
+    "hardhat-abi-exporter": "^2.3.1",
+    "hardhat-contract-sizer": "^2.1.1",
+    "solidity-coverage": "^0.7.21"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.3.2"
+  }
+}

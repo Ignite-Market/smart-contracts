@@ -1,0 +1,21 @@
+# Config files, private keys
+.idea/
+secrets.json
+.vscode
+
+# Node.js
+node_modules
+package-lock.json
+
+#Hardhat files
+bin
+cache
+artifacts
+data/
+coverage/
+coverage.json
+
+#Solidity
+soljson*
+
+.tmp*

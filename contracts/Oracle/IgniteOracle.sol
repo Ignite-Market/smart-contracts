@@ -78,7 +78,7 @@ contract IgniteOracle is AccessControl {
         require(urlAr.length >= 3, "Oracle requires at least 3 API sources");
         require(
             consensusPercent >= 51 && consensusPercent <= 100, 
-            "consensusPercent has to be in range 50-100"
+            "consensusPercent has to be in range 51-100"
         );
 
         require(resolutionTime > block.timestamp, "Only future events");

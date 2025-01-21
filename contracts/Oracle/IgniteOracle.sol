@@ -31,6 +31,7 @@ contract IgniteOracle is AccessControl {
         uint256 apiSources; // >= 3
         uint256 consensusPercent; // 51 - 100
         uint256 resolutionTime; // > block.timestamp
+        uint256[] apiResolution;
     }
 
     mapping(bytes32 => Question) public question;
@@ -71,7 +72,7 @@ contract IgniteOracle is AccessControl {
         uint256 resolutionTime
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
 
-        require(question[questionId].outcomeSlotCount == 0, "Question already initialized");
+        require(question[questionId].status == Status.INVALID, "Question already initialized");
         require(outcomeSlotCount >= 2, "outcomeSlotCount < 2");
 
         require(urlAr.length == postprocessJqAr.length, "Array mismatch");
@@ -88,7 +89,8 @@ contract IgniteOracle is AccessControl {
             outcomeSlotCount: outcomeSlotCount,
             apiSources: urlAr.length,
             consensusPercent: consensusPercent,
-            resolutionTime: resolutionTime
+            resolutionTime: resolutionTime,
+            apiResolution: new uint256[](outcomeSlotCount)
         });
 
         // Prepare condition on conditionalTokens
@@ -120,7 +122,7 @@ contract IgniteOracle is AccessControl {
 
         // Process each API result proof
         bytes32 jqKey;
-        uint256[] memory payouts = new uint256[](qData.outcomeSlotCount);
+        bytes32[] memory jqKeyDuplicates = new bytes32[](proofs.length);
 
         for (uint256 i = 0; i < proofs.length; i++) {
             IJsonApi.Proof memory proof = proofs[i];
@@ -131,6 +133,12 @@ contract IgniteOracle is AccessControl {
             );
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 
+            // check for proof duplicates
+            for (uint256 j = 0; j < i; j ++) {
+                require(jqKeyDuplicates[j] != jqKey, "Duplicate proof");
+            }
+            jqKeyDuplicates[i] = jqKey;
+
             // check if proof actually is valid
             require(
                 verification.verifyJsonApi(proof),
@@ -140,13 +148,13 @@ contract IgniteOracle is AccessControl {
             // decode result
             uint256 outcomeIdx = abi.decode(proof.data.responseBody.abi_encoded_data, (uint256));
 
-            payouts[outcomeIdx] += 1;
+            qData.apiResolution[outcomeIdx] += 1;
         }
 
         // Find winner id
         uint256 winnerId = type(uint256).max;
-        for (uint256 i = 0; i < payouts.length; i++) {
-            if (payouts[i] * 100 / qData.apiSources >= qData.consensusPercent) {
+        for (uint256 i = 0; i < qData.outcomeSlotCount; i++) {
+            if (qData.apiResolution[i] * 100 / qData.apiSources >= qData.consensusPercent) {
                 winnerId = i;
                 break;
             }
@@ -159,13 +167,8 @@ contract IgniteOracle is AccessControl {
         } else {
             qData.status = Status.FINALIZED;
 
-            // clear all non winning ids
-            for (uint256 i = 0; i < payouts.length; i++) {
-                if (winnerId == i) {
-                    continue;
-                }
-                payouts[i] = 0;
-            }
+            uint256[] memory payouts = new uint256[](qData.outcomeSlotCount);
+            payouts[winnerId] = 1;
 
             conditionalTokens.reportPayouts(questionId, payouts);
         }

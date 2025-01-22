@@ -48,13 +48,12 @@ module.exports = {
       chainId: 84532,
       accounts: [privateKeyTestnet], 
       gasPrice: 'auto',
+      explorer: "https://sepolia.basescan.org/",
     },
   },
   etherscan: {
     apiKey: {
-      polygonAmoy: amoyScanApiKey,
       polygon: polygonScanApiKey,
-      amoy: polygonScanApiKey,
       baseSepolia: baseSepoliaApiKey
     },
     customChains: [
@@ -64,14 +63,6 @@ module.exports = {
         urls: {
          apiURL: "https://api-sepolia.basescan.org/api",
          browserURL: "https://sepolia.basescan.org"
-        }
-      },
-      {
-        network: "amoy",
-        chainId: 80002,
-        urls: {
-          apiURL: "https://api-amoy.polygonscan.com/api",
-          browserURL: "https://amoy.polygonscan.com"
         }
       },
     ],

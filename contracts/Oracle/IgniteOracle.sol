@@ -32,6 +32,7 @@ contract IgniteOracle is AccessControl {
         uint256 consensusPercent; // 51 - 100
         uint256 resolutionTime; // > block.timestamp
         uint256[] apiResolution;
+        uint256 winnerIdx; // by default type(uint256).max
     }
 
     mapping(bytes32 => Question) public question;
@@ -90,7 +91,8 @@ contract IgniteOracle is AccessControl {
             apiSources: urlAr.length,
             consensusPercent: consensusPercent,
             resolutionTime: resolutionTime,
-            apiResolution: new uint256[](outcomeSlotCount)
+            apiResolution: new uint256[](outcomeSlotCount),
+            winnerIdx: type(uint256).max
         });
 
         // Prepare condition on conditionalTokens
@@ -166,6 +168,7 @@ contract IgniteOracle is AccessControl {
 
         } else {
             qData.status = Status.FINALIZED;
+            qData.winnerIdx = winnerId;
 
             uint256[] memory payouts = new uint256[](qData.outcomeSlotCount);
             payouts[winnerId] = 1;
@@ -192,12 +195,13 @@ contract IgniteOracle is AccessControl {
             questionOutcomeVotes[questionId][outcomeIdx] >= minVotes && 
             questionOutcomeVotes[questionId][outcomeIdx] * 100 / noOfVoters >= qData.consensusPercent
         ) {
+            qData.status = Status.FINALIZED;
+            qData.winnerIdx = outcomeIdx;
+
             uint256[] memory payouts = new uint256[](qData.outcomeSlotCount);
             payouts[outcomeIdx] = 1;
 
             conditionalTokens.reportPayouts(questionId, payouts);
-
-            qData.status = Status.FINALIZED;
         }
     }
 

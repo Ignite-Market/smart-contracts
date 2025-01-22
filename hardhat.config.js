@@ -5,7 +5,7 @@ require('solidity-coverage');
 require("@nomiclabs/hardhat-waffle");
 require('@nomiclabs/hardhat-etherscan');
 
-const { amoyScanApiKey, privateKeyTestnet, privateKeyMainnet, polygonScanApiKey, baseSepoliaApiKey } = require('./secrets.json');
+const { privateKeyTestnet, privateKeyMainnet, coston2RpcApi, baseSepoliaApiKey } = require('./secrets.json');
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
@@ -28,27 +28,19 @@ module.exports = {
     enabled: false,
   },
   networks: {
-    polygon: {
-      url: 'https://polygon-mainnet.g.alchemy.com/v2/T-mROIoeYqiBLxxBRhVb1BgW26oYH-Dk',
-      chainId: 137,
-      gasPrice: 'auto', // 40gwei
-      accounts: [privateKeyMainnet],
-      explorer: 'https://polygonscan.com/',
-    },
-    polygonAmoy: {
-      url: 'https://polygon-amoy.g.alchemy.com/v2/RH5hNyFZbVhB-97gPHGGSW3VSPzFARER',
-      accounts: [privateKeyTestnet],
-      chainId: 80002,
-      gasPrice: 'auto', // 10gwei
-      gas: 2000000,
-      explorer: "https://www.oklink.com/amoy/"
-    },
     baseSepolia: {
       url: "https://base-sepolia.g.alchemy.com/v2/rGCTaF-9bBmbfeSTu8XivBMqMaqlUgsB",
       chainId: 84532,
       accounts: [privateKeyTestnet], 
       gasPrice: 'auto',
       explorer: "https://sepolia.basescan.org/",
+    },
+    coston2: {
+      url: `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${coston2RpcApi}`,
+      chainId: 114,
+      accounts: [privateKeyTestnet], 
+      gasPrice: 'auto',
+      explorer: "https://coston2.testnet.flarescan.com/",
     },
   },
   etherscan: {

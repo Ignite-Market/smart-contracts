@@ -48,13 +48,13 @@ The price will dynamically change and is reflected by the full percentage of all
 
 
 # FPMM: Fixed Product Market Maker
-The FPMM sets it origin in Gnosis FPMM, and presents the basic tading mechainsm for traignt eht outcome shares witihn the contisionla tokens.
+The FPMM originates from Gnosis FPMM and introduces the basic trading mechanism for trading outcome shares within conditional tokens.
 
 The FPMM (Fixed Product Market Maker) is an automated market maker using a mechanism similar to Uniswap and Balancer pools. However, the FPMM logic is specifically tailored for prediction markets.
 
 ## FPMM Invariant Formula
 
-In FPMM, we always track constant product which presents constant. We use the following formula:
+In FPMM, we always track unchanged matematical product which presents constant. We use the following formula:
 constant = product("Total Number Of Tokens" for each OutcomeShare)
 
 

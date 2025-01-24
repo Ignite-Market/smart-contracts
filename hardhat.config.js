@@ -45,7 +45,6 @@ module.exports = {
   },
   etherscan: {
     apiKey: {
-      polygon: polygonScanApiKey,
       baseSepolia: baseSepoliaApiKey
     },
     customChains: [
@@ -63,5 +62,8 @@ module.exports = {
     path: "./data/abi",
     clear: true,
     flat: true,
+  },
+  mocha: {
+    grep: 'IgniteOracle',
   },
 };

@@ -1,5 +1,13 @@
 # Ignite market contracts
 
+This repo contains Ignite Market contracts. The product description can be found [here](ProductDescription.md):
+
+IgniteMarket contracts represent the core components of the Ignite Market. The three contracts support the market's basic functionalities:
+- Conditional Tokens
+- FPMM Factory
+- Oracle (FDC Connection)
+
+
 ## Development
 
 > Instructions for development.

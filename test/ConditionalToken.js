@@ -1,6 +1,5 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-// const ethSigUtil = require("eth-sig-util");
 
 // Helper functions
 const getConditionId = (oracle, questionId, outcomeSlotCount) => 

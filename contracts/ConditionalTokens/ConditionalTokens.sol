@@ -1,8 +1,7 @@
 pragma solidity ^0.5.1;
 import { IERC20 } from "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
 import { ERC1155 } from "./ERC1155/ERC1155.sol";
-import { CTHelpers } from "@gnosis.pm/conditional-tokens-contracts/contracts/CTHelpers.sol";
-// import { CTHelpers } from "./CTHelpers.sol";
+import { CTHelpers } from "./CTHelpers.sol";
 
 contract ConditionalTokens is ERC1155 {
 

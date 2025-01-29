@@ -65,6 +65,6 @@ module.exports = {
   },
   mocha: {
     // grep: 'ConditionalTokens',
-    // grep: 'IgniteOracle',
+    grep: 'IgniteOracle',
   },
 };

@@ -16,7 +16,7 @@ describe("IgniteOracle", function () {
   });
 
   beforeEach(async () => {
-    [owner, voter1, voter2, voter3] = await ethers.getSigners();
+    [owner, voter1, voter2, voter3, noRoleVoter] = await ethers.getSigners();
 
     const conditionalTokensF = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
     CONDITIONAL_TOKENS = await conditionalTokensF.deploy();
@@ -155,6 +155,95 @@ describe("IgniteOracle", function () {
     await ORACLE.connect(voter3).vote(questionId, 0);
     expect((await ORACLE.question(questionId)).status).to.equal(STATUS_FINALIZED);
 
+  });
+
+  describe("Resolution voting", async () => {
+    const questionId = ethers.utils.formatBytes32String("question_01");
+    const outcomeSlotCount = 2;
+
+    const urlAr = [
+        "http://www.nba.com/api",
+        "http://www.bet365.com/api",
+        "http://www.random.com/api",
+    ];
+
+    const postprocessJqAr = [
+        "",
+        "",
+        "",
+    ]
+
+    beforeEach(async() => {
+        await ORACLE.initializeQuestion(
+            questionId,
+            outcomeSlotCount,
+            urlAr,
+            postprocessJqAr,
+            90,
+            curDate + 100
+        );
+    })
+
+
+    context('without the correct VOTING status', () => {
+        it('should not vote if without voter role', async () => {
+            await expect(ORACLE.connect(noRoleVoter).vote(questionId, 0)).to.be.revertedWith(
+                `AccessControl: account ${noRoleVoter.address.toLowerCase()} is missing role ${VOTER_ROLE}`
+            );
+        });
+
+        it('should not vote if not in correct status', async () => {
+            await expect(ORACLE.connect(voter1).vote(questionId, 0)).to.be.revertedWith('Cannot vote, status != VOTING')
+        });
+    });
+
+    context('with the correct VOTING status', async() => {
+        beforeEach(async() => {
+            const proofs = createProofList(
+                [
+                    { url: urlAr[0], result: 1 },
+                    { url: urlAr[1], result: 1 },
+                    { url: urlAr[2], result: 0 },
+                ]
+            )
+        
+            await ethers.provider.send("evm_increaseTime", [100]);
+            curDate += 100;
+
+            await ORACLE.finalizeQuestion(
+                questionId,
+                proofs
+            );
+        });
+
+        it('should not vote if without voter role', async () => {
+            await expect(ORACLE.connect(noRoleVoter).vote(questionId, 0)).to.be.revertedWith(
+                `AccessControl: account ${noRoleVoter.address.toLowerCase()} is missing role ${VOTER_ROLE}`
+            );
+        });
+
+        it('should not vote if already voted', async () => {
+            await ORACLE.connect(voter1).vote(questionId, 0);
+            await expect(ORACLE.connect(voter1).vote(questionId, 0)).to.be.revertedWith('Already voted')
+        });
+
+        it('should not vote with invalid outcome index', async () => {
+            await expect(ORACLE.connect(voter1).vote(questionId, 3)).to.be.revertedWith('Invalid outcomeIdx')
+        });
+
+        it('should cast valid vote and emit VoteSubmitted event', async () => {
+            const outcomeIndex = 0;
+
+            const tx = await ORACLE.connect(voter1).vote(questionId, outcomeIndex);
+            await expect(tx)
+                .to.emit(ORACLE, "VoteSubmitted")
+                .withArgs(
+                    voter1.address,
+                    questionId,
+                    outcomeIndex
+                );
+        });
+    });
   });
 
 });

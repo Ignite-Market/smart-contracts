@@ -13,6 +13,20 @@ interface IConditionalTokens {
 
 contract IgniteOracle is AccessControl {
 
+    /**
+        * @dev Emitted when a resolution vote is cast. 
+        * @param voter Voter's address.
+        * @param questionId Question ID.
+        * @param outcomeIdx Outcome index ID.
+    */
+    event VoteSubmitted(
+        address indexed voter,
+        bytes32 indexed questionId, 
+        uint256 outcomeIdx
+    );
+
+
+
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
 
     IConditionalTokens public immutable conditionalTokens;
@@ -203,12 +217,13 @@ contract IgniteOracle is AccessControl {
 
             conditionalTokens.reportPayouts(questionId, payouts);
         }
+
+        emit VoteSubmitted(msg.sender, questionId, outcomeIdx);
     }
 
     /**
      * Override grant & revoke role, to keep track of total number of voters
      */
-
     function grantRole(bytes32 role, address account) public override onlyRole(getRoleAdmin(role)) {
         if(role == VOTER_ROLE && !hasRole(VOTER_ROLE, account)) {
             noOfVoters += 1;

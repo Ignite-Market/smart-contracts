@@ -54,7 +54,7 @@ The FPMM (Fixed Product Market Maker) is an automated market maker using a mecha
 
 ## FPMM Invariant Formula
 
-In FPMM, we always track unchanged matematical product which presents constant. We use the following formula:
+In FPMM, we always track unchanged mathematical product which presents constant. We use the following formula:
 constant = product("Total Number Of Tokens" for each OutcomeShare)
 
 
@@ -131,5 +131,5 @@ If there is no market resolution, users can sell back their tokens until the liq
 
 # Market Payment Units
 
-Share prices are consistently calculated in their USD equivalent, providing a standardized reference for all transactions. If users opt to pay for shares with tokens other than USD, such as FLR, the token swap mechianism is used. 
+Share prices are consistently calculated in their USD equivalent, providing a standardized reference for all transactions. If users opt to pay for shares with tokens other than USD, such as FLR, the token swap mechanism is used. 
 

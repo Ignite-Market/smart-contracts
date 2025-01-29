@@ -1,7 +1,7 @@
 {
   "name": "ignite-market-contracts",
   "version": "0.0.1",
-  "description": "Smart contract for Ignite Market.",
+  "description": "Smart contracts for Ignite Market.",
   "main": "index.js",
   "scripts": {
     "test": "npx hardhat test",

@@ -39,7 +39,7 @@ contract IgniteOracle is AccessControl {
 
     struct Question {
         Status status;
-        bool automatic; // If question resolution is automatic trough API sources.
+        bool automatic; // If question resolution is automatic through API sources.
         uint256 outcomeSlotCount; // >= 2
         uint256 apiSources; // >= 3
         uint256 consensusPercent; // 51 - 100

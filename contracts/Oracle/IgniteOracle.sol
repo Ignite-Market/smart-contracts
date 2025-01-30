@@ -254,7 +254,7 @@ contract IgniteOracle is AccessControl {
     }
 
     /**
-     * Override grant & revoke role, to keep track of total number of voters
+     * Override grant role, to keep track of total number of voters
      * 
      * @dev Grants a role to an account.
      * @param role Role.
@@ -268,6 +268,8 @@ contract IgniteOracle is AccessControl {
     }
 
     /**
+     * Override revoke role, to keep track of total number of voters
+     * 
      * @dev Revokes a role from an account.
      * @param role Role.
      * @param account Account.

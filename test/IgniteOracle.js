@@ -162,6 +162,53 @@ describe("IgniteOracle", function () {
             expect((await ORACLE.question(questionId)).status).to.equal(STATUS_FINALIZED);
 
         });
+
+        it("flow: Initialize manual question -> finalize -> then vote", async function () {
+            const questionId = ethers.utils.formatBytes32String("question_01");
+            const outcomeSlotCount = 2;
+
+            const consensusPercent = 60;
+            const resolutionTime = curDate + 100; // 100 sec in future
+            const automaticResolution = false;
+
+            await ORACLE.initializeQuestion(
+                questionId,
+                outcomeSlotCount,
+                [],
+                [],
+                consensusPercent,
+                resolutionTime,
+                automaticResolution
+            );
+
+            await ethers.provider.send("evm_increaseTime", [100]);
+            curDate += 100;
+
+
+            await ORACLE.finalizeQuestion(
+                questionId,
+                []
+            );
+
+            let qData = await ORACLE.question(questionId);
+            expect(qData.status).to.equal(STATUS_VOTING);
+
+            await expect(ORACLE.vote(questionId, 0)).to.be.revertedWith(
+                `AccessControl: account ${owner.address.toLowerCase()} is missing role ${VOTER_ROLE}`
+            );
+
+            // voter 1
+            await ORACLE.connect(voter1).vote(questionId, 0);
+            expect((await ORACLE.question(questionId)).status).to.equal(STATUS_VOTING);
+
+            // voter 2
+            await ORACLE.connect(voter2).vote(questionId, 0);
+            expect((await ORACLE.question(questionId)).status).to.equal(STATUS_VOTING);
+
+            // voter 3
+            await ORACLE.connect(voter3).vote(questionId, 0);
+            expect((await ORACLE.question(questionId)).status).to.equal(STATUS_FINALIZED);
+        });
     });
 
     describe('Question initialization', async () => {
@@ -296,6 +343,7 @@ describe("IgniteOracle", function () {
             expect(receipt.transactionHash).not.to.equal(null);
 
             const qData = await ORACLE.question(questionId);
+            expect(qData.status).to.equal(STATUS_ACTIVE);
             expect(qData.automatic).to.equal(false);
             expect(qData.outcomeSlotCount).to.equal(outcomeSlots);
             expect(qData.apiSources).to.equal(0);
@@ -413,6 +461,7 @@ describe("IgniteOracle", function () {
                 expect(receipt.transactionHash).not.to.equal(null);
         
                 const qData = await ORACLE.question(questionId);
+                expect(qData.status).to.equal(STATUS_ACTIVE);
                 expect(qData.automatic).to.equal(true);
                 expect(qData.outcomeSlotCount).to.equal(outcomeSlots);
                 expect(qData.apiSources).to.equal(urlAr.length);
@@ -421,7 +470,253 @@ describe("IgniteOracle", function () {
         });
     });
 
-    describe("Resolution voting", async () => {
+    describe('Question finalization', async () => {
+        const questionId = ethers.utils.formatBytes32String("question_01");
+        const outcomeSlotCount = 2;
+
+        beforeEach(async ()=> {
+            await ethers.provider.send("evm_increaseTime", [1]);
+            await ethers.provider.send("evm_mine");
+            
+            const latestBlock = await ethers.provider.getBlock('latest');
+            curDate = latestBlock.timestamp;
+        });
+
+        it('should not finalize question if not in correct status', async () => {
+            const newQuestionId = ethers.utils.formatBytes32String("question_02");
+
+            await expect(
+                ORACLE.finalizeQuestion(newQuestionId, [])
+            ).to.be.revertedWith('Cannot finalize, status != ACTIVE')
+        });
+
+        it('should not finalize question if it has been already finalized', async () => {
+            await ORACLE.initializeQuestion(
+                questionId,
+                outcomeSlotCount,
+                [],
+                [],
+                90,
+                curDate + 100,
+                false
+            );
+
+            await ethers.provider.send("evm_increaseTime", [100]);
+            curDate += 100;
+
+            await ORACLE.finalizeQuestion(
+                questionId,
+                []
+            );
+
+            await expect(
+                ORACLE.finalizeQuestion(questionId, [])
+            ).to.be.revertedWith('Cannot finalize, status != ACTIVE')
+        });
+
+        it('should not finalize question if its resolution time is not reached', async () => {
+            await ORACLE.initializeQuestion(
+                questionId,
+                outcomeSlotCount,
+                [],
+                [],
+                90,
+                curDate + 100,
+                false
+            );
+
+            await expect(
+                ORACLE.finalizeQuestion(questionId, [])
+            ).to.be.revertedWith('Resolution time not reached')
+        });
+
+        context('with manual resolution', async () => {
+            beforeEach(async () => {
+                await ORACLE.initializeQuestion(
+                    questionId,
+                    outcomeSlotCount,
+                    [],
+                    [],
+                    90,
+                    curDate + 100,
+                    false
+                );
+
+                await ethers.provider.send("evm_increaseTime", [100]);
+                curDate += 100;
+            });
+
+            it('should finalize manual resolution question without proofs and go straight to voting phase', async () => {    
+                const tx = await ORACLE.finalizeQuestion(questionId, []);
+
+                expect(tx).not.to.equal(null);
+                expect(tx.hash).not.to.equal(null);
+
+                const receipt = await tx.wait();
+                expect(receipt).not.to.equal(null);
+                expect(receipt.transactionHash).not.to.equal(null);
+
+                const qData = await ORACLE.question(questionId);
+                expect(qData.status).to.equal(STATUS_VOTING);
+            });
+        });
+
+        context('with automatic resolution', async () => {
+            const urlAr = [
+                "http://www.nba.com/api",
+                "http://www.bet365.com/api",
+                "http://www.random.com/api",
+            ];
+    
+            const postprocessJqAr = [
+                "",
+                "",
+                "",
+            ]
+
+            beforeEach(async () => {
+                await ORACLE.initializeQuestion(
+                    questionId,
+                    outcomeSlotCount,
+                    urlAr,
+                    postprocessJqAr,
+                    60,
+                    curDate + 100,
+                    true
+                );
+
+                await ethers.provider.send("evm_increaseTime", [100]);
+                curDate += 100;
+            });
+
+            it('should not finalize question without proofs', async () => {
+                await expect(
+                    ORACLE.finalizeQuestion(questionId, [])
+                ).to.be.revertedWith('Proofs & apiSources mismatch');
+            });
+
+            it('should not finalize question with invalid proofs', async () => {
+                const newQuestionId = ethers.utils.formatBytes32String("question_02");
+                const newUrlAr = [
+                    "http://www.nba.com/api/new",
+                    "http://www.bet365.com/api/new",
+                    "http://www.random.com/api/new",
+                ];
+                const newPostprocessJqAr = [
+                    "",
+                    "",
+                    "",
+                ]
+
+                await ORACLE.initializeQuestion(
+                    newQuestionId,
+                    outcomeSlotCount,
+                    newUrlAr,
+                    newPostprocessJqAr,
+                    60,
+                    curDate + 100,
+                    true
+                );
+
+                const proofs = createProofList(
+                    [
+                        { url: newUrlAr[0], result: 1 },
+                        { url: newUrlAr[1], result: 1 },
+                        { url: newUrlAr[2], result: 0 },
+                    ]
+                );
+
+                await expect(
+                    ORACLE.finalizeQuestion(questionId, proofs)
+                ).to.be.revertedWith('Proof for invalid questionId');
+            });
+
+
+            it('should not finalize question with duplicated proofs', async () => {
+                const proofs = createProofList(
+                    [
+                        { url: urlAr[0], result: 1 },
+                        { url: urlAr[0], result: 1 },
+                        { url: urlAr[0], result: 0 },
+                    ]
+                );
+
+                await expect(
+                    ORACLE.finalizeQuestion(questionId, proofs)
+                ).to.be.revertedWith('Duplicate proof');
+            });
+
+            it('should finalize automatic resolution question with met consensus', async () => {    
+                const proofs = createProofList(
+                    [
+                        { url: urlAr[0], result: 1 },
+                        { url: urlAr[1], result: 1 },
+                        { url: urlAr[2], result: 0 },
+                    ]
+                );
+
+                const tx = await ORACLE.finalizeQuestion(questionId, proofs);
+
+                expect(tx).not.to.equal(null);
+                expect(tx.hash).not.to.equal(null);
+
+                const receipt = await tx.wait();
+                expect(receipt).not.to.equal(null);
+                expect(receipt.transactionHash).not.to.equal(null);
+
+                const qData = await ORACLE.question(questionId);
+                expect(qData.status).to.equal(STATUS_FINALIZED);
+                expect(qData.winnerIdx).to.equal(1);
+            });
+
+            it('should finalize automatic resolution question and go to voting phase when consensus is not met', async () => {    
+                const newQuestionId = ethers.utils.formatBytes32String("question_02");
+                const newUrlAr = [
+                    "http://www.nba.com/api/new",
+                    "http://www.bet365.com/api/new",
+                    "http://www.random.com/api/new",
+                ];
+
+                await ORACLE.initializeQuestion(
+                    newQuestionId,
+                    outcomeSlotCount,
+                    newUrlAr,
+                    postprocessJqAr,
+                    100,
+                    curDate + 100,
+                    true
+                );
+
+                await ethers.provider.send("evm_increaseTime", [100]);
+                curDate += 100;
+                
+                const proofs = createProofList(
+                    [
+                        { url: newUrlAr[0], result: 1 },
+                        { url: newUrlAr[1], result: 1 },
+                        { url: newUrlAr[2], result: 0 },
+                    ]
+                );
+
+                const tx = await ORACLE.finalizeQuestion(newQuestionId, proofs);
+
+                expect(tx).not.to.equal(null);
+                expect(tx.hash).not.to.equal(null);
+
+                const receipt = await tx.wait();
+                expect(receipt).not.to.equal(null);
+                expect(receipt.transactionHash).not.to.equal(null);
+
+                const qData = await ORACLE.question(newQuestionId);
+                expect(qData.status).to.equal(STATUS_VOTING);
+                expect(qData.winnerIdx).to.equal(ethers.constants.MaxUint256);
+            });
+
+        })
+
+    })
+
+    describe("Question resolution voting", async () => {
         const questionId = ethers.utils.formatBytes32String("question_01");
         const outcomeSlotCount = 2;
         const automaticResolution = true;
@@ -455,7 +750,6 @@ describe("IgniteOracle", function () {
                 automaticResolution
             );
         });
-
 
         context('without the correct VOTING status', () => {
             it('should not vote if without voter role', async () => {

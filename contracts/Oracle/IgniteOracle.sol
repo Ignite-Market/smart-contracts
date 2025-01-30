@@ -14,18 +14,16 @@ interface IConditionalTokens {
 contract IgniteOracle is AccessControl {
 
     /**
-        * @dev Emitted when a resolution vote is cast. 
-        * @param voter Voter's address.
-        * @param questionId Question ID.
-        * @param outcomeIdx Outcome index ID.
+    * @dev Emitted when a resolution vote is cast. 
+    * @param voter Voter's address.
+    * @param questionId Question ID. 
+    * @param outcomeIdx Outcome index ID.
     */
     event VoteSubmitted(
         address indexed voter,
         bytes32 indexed questionId, 
         uint256 outcomeIdx
     );
-
-
 
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
 
@@ -41,6 +39,7 @@ contract IgniteOracle is AccessControl {
 
     struct Question {
         Status status;
+        bool automatic; // If question resolution is automatic trough API sources.
         uint256 outcomeSlotCount; // >= 2
         uint256 apiSources; // >= 3
         uint256 consensusPercent; // 51 - 100
@@ -78,29 +77,43 @@ contract IgniteOracle is AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
+    /**
+     * @dev Initializes question.
+     * @param questionId Question ID.
+     * @param outcomeSlotCount Number of question outcomes.
+     * @param urlAr Array of API sources URLs.
+     * @param postprocessJqAr Array of Postprocess JQs.
+     * @param consensusPercent Consensus percent.
+     * @param resolutionTime Resolution time.
+     * @param automatic Tells if question resolution is automatic via API sources.
+     */
     function initializeQuestion(
         bytes32 questionId,
         uint256 outcomeSlotCount,
         string[] memory urlAr,
         string[] memory postprocessJqAr,
         uint256 consensusPercent,
-        uint256 resolutionTime
+        uint256 resolutionTime,
+        bool automatic
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
 
         require(question[questionId].status == Status.INVALID, "Question already initialized");
         require(outcomeSlotCount >= 2, "outcomeSlotCount < 2");
-
-        require(urlAr.length == postprocessJqAr.length, "Array mismatch");
-        require(urlAr.length >= 3, "Oracle requires at least 3 API sources");
         require(
-            consensusPercent >= 51 && consensusPercent <= 100, 
+            consensusPercent >= 51 && consensusPercent <= 100,
             "consensusPercent has to be in range 51-100"
         );
-
         require(resolutionTime > block.timestamp, "Only future events");
+
+        // If resolution is automatic require API sources.
+        if (automatic) {
+            require(urlAr.length == postprocessJqAr.length, "Array mismatch");
+            require(urlAr.length >= 3, "Oracle requires at least 3 API sources");
+        }
 
         question[questionId] = Question({
             status: Status.ACTIVE,
+            automatic: automatic,
             outcomeSlotCount: outcomeSlotCount,
             apiSources: urlAr.length,
             consensusPercent: consensusPercent,
@@ -109,21 +122,29 @@ contract IgniteOracle is AccessControl {
             winnerIdx: type(uint256).max
         });
 
-        // Prepare condition on conditionalTokens
+        // Prepare condition on Conditional Tokens contract.
         conditionalTokens.prepareCondition(address(this), questionId, outcomeSlotCount);
 
-        // Map each jqKey to questionId -- we will need this for resolution
-        bytes32 jqKey;
-        for (uint256 i = 0; i < urlAr.length; i++) {
-            jqKey = keccak256(
-                abi.encodePacked(urlAr[i], postprocessJqAr[i])
-            );
+        // Map each jqKey to questionId -- we will need this for automatic resolution.
+         if (automatic) {
+            bytes32 jqKey;
 
-            require(jqToQuestionId[jqKey] == bytes32(0), "jqKey duplicate"); 
-            jqToQuestionId[jqKey] = questionId;
+            for (uint256 i = 0; i < urlAr.length; i++) {
+                jqKey = keccak256(
+                    abi.encodePacked(urlAr[i], postprocessJqAr[i])
+                );
+
+                require(jqToQuestionId[jqKey] == bytes32(0), "jqKey duplicate"); 
+                jqToQuestionId[jqKey] = questionId;
+            }
         }
     }
 
+    /**
+     * @dev Finalizes question.
+     * @param questionId Question ID.
+     * @param proofs Proofs array.
+     */
     function finalizeQuestion(
         bytes32 questionId, 
         IJsonApi.Proof[] calldata proofs
@@ -133,41 +154,47 @@ contract IgniteOracle is AccessControl {
         require(qData.status == Status.ACTIVE, "Cannot finalize, status != ACTIVE");
         require(qData.resolutionTime <= block.timestamp, "Resolution time not reached");
 
-        // Allow finalize only if all api proofs are given
+        // If resolution is not automatic go straight to voting phase.
+        if (!qData.automatic) {
+            qData.status = Status.VOTING;
+            return;
+        }
+
+        // Allow finalize only if all api proofs are given.
         require(proofs.length == qData.apiSources, "Proofs & apiSources mismatch");
 
-        // Process each API result proof
+        // Process each API result proof.
         bytes32 jqKey;
         bytes32[] memory jqKeyDuplicates = new bytes32[](proofs.length);
 
         for (uint256 i = 0; i < proofs.length; i++) {
             IJsonApi.Proof memory proof = proofs[i];
 
-            // check if proof matches with questionId
+            // Check if proof matches with questionId.
             jqKey = keccak256(
                 abi.encodePacked(proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
             );
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 
-            // check for proof duplicates
+            // Check for proof duplicates.
             for (uint256 j = 0; j < i; j ++) {
                 require(jqKeyDuplicates[j] != jqKey, "Duplicate proof");
             }
             jqKeyDuplicates[i] = jqKey;
 
-            // check if proof actually is valid
+            // Check if proof actually is valid.
             require(
                 verification.verifyJsonApi(proof),
                 "JsonApi is not confirmed by DA Layer"
             );
 
-            // decode result
+            // Decode result.
             uint256 outcomeIdx = abi.decode(proof.data.responseBody.abi_encoded_data, (uint256));
 
             qData.apiResolution[outcomeIdx] += 1;
         }
 
-        // Find winner id
+        // Find winner ID.
         uint256 winnerId = type(uint256).max;
         for (uint256 i = 0; i < qData.outcomeSlotCount; i++) {
             if (qData.apiResolution[i] * 100 / qData.apiSources >= qData.consensusPercent) {
@@ -177,7 +204,7 @@ contract IgniteOracle is AccessControl {
         }
 
         if (winnerId == type(uint256).max) {
-            // require voting
+            // Require voting.
             qData.status = Status.VOTING;
 
         } else {
@@ -191,6 +218,11 @@ contract IgniteOracle is AccessControl {
         }
     }
 
+    /**
+     * @dev Casts a vote for a question.
+     * @param questionId Question ID.
+     * @param outcomeIdx Outcome index ID.  
+     */
     function vote(
         bytes32 questionId, 
         uint256 outcomeIdx
@@ -223,6 +255,10 @@ contract IgniteOracle is AccessControl {
 
     /**
      * Override grant & revoke role, to keep track of total number of voters
+     * 
+     * @dev Grants a role to an account.
+     * @param role Role.
+     * @param account Account.
      */
     function grantRole(bytes32 role, address account) public override onlyRole(getRoleAdmin(role)) {
         if(role == VOTER_ROLE && !hasRole(VOTER_ROLE, account)) {
@@ -231,11 +267,15 @@ contract IgniteOracle is AccessControl {
         _grantRole(role, account);
     }
 
+    /**
+     * @dev Revokes a role from an account.
+     * @param role Role.
+     * @param account Account.
+     */
     function revokeRole(bytes32 role, address account) public override onlyRole(getRoleAdmin(role)) {
         if(role == VOTER_ROLE && hasRole(VOTER_ROLE, account)) {
             noOfVoters -= 1;
         }
         _revokeRole(role, account);
     }
-
 }

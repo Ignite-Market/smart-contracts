@@ -1,5 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { before } = require("node:test");
 
 describe("IgniteOracle", function () {
   let owner, ORACLE, CONDITIONAL_TOKENS, VERIFICATION, voter1, voter2, voter3, VOTER_ROLE;
@@ -60,6 +61,7 @@ describe("IgniteOracle", function () {
 
     const consensusPercent = 59;
     const resolutionTime = curDate + 100; // 100 sec in future
+    const automaticResolution = true;
 
     await ORACLE.initializeQuestion(
         questionId,
@@ -67,7 +69,8 @@ describe("IgniteOracle", function () {
         urlAr,
         postprocessJqAr,
         consensusPercent,
-        resolutionTime
+        resolutionTime,
+        automaticResolution
     );
 
     await ethers.provider.send("evm_increaseTime", [100]);
@@ -109,6 +112,7 @@ describe("IgniteOracle", function () {
 
     const consensusPercent = 90;
     const resolutionTime = curDate + 100; // 100 sec in future
+    const automaticResolution = true;
 
     await ORACLE.initializeQuestion(
         questionId,
@@ -116,7 +120,8 @@ describe("IgniteOracle", function () {
         urlAr,
         postprocessJqAr,
         consensusPercent,
-        resolutionTime
+        resolutionTime,
+        automaticResolution
     );
 
     await ethers.provider.send("evm_increaseTime", [100]);
@@ -160,6 +165,7 @@ describe("IgniteOracle", function () {
   describe("Resolution voting", async () => {
     const questionId = ethers.utils.formatBytes32String("question_01");
     const outcomeSlotCount = 2;
+    const automaticResolution = true;
 
     const urlAr = [
         "http://www.nba.com/api",
@@ -173,16 +179,23 @@ describe("IgniteOracle", function () {
         "",
     ]
 
-    beforeEach(async() => {
+    beforeEach(async ()=> {
+        await ethers.provider.send("evm_increaseTime", [1]);
+        await ethers.provider.send("evm_mine");
+        
+        const latestBlock = await ethers.provider.getBlock('latest');
+        curDate = latestBlock.timestamp;
+
         await ORACLE.initializeQuestion(
             questionId,
             outcomeSlotCount,
             urlAr,
             postprocessJqAr,
             90,
-            curDate + 100
+            curDate + 100,
+            automaticResolution
         );
-    })
+    });
 
 
     context('without the correct VOTING status', () => {
@@ -245,6 +258,264 @@ describe("IgniteOracle", function () {
         });
     });
   });
+
+  describe('Question initialization', async () => {
+    beforeEach(async ()=> {
+        await ethers.provider.send("evm_increaseTime", [1]);
+        await ethers.provider.send("evm_mine");
+        
+        const latestBlock = await ethers.provider.getBlock('latest');
+        curDate = latestBlock.timestamp;
+    });
+
+    const questionId = ethers.utils.formatBytes32String("question_01");
+
+    it('should not initialize question with duplicate question ID', async () => {
+        await ORACLE.initializeQuestion(
+            questionId,
+            2,
+            [],
+            [],
+            90,
+            curDate + 100,
+            false
+        );
+
+        await expect(
+            ORACLE.initializeQuestion(
+                questionId,
+                2,
+                [],
+                [],
+                90,
+                curDate + 100,
+                false
+            )
+        ).to.be.revertedWith('Question already initialized');
+    });
+
+    it('should not initialize question with invalid number if outcome slots (outcomeSlotCount < 2)', async () => {
+        const outcomeSlotCount = 1;
+
+        await expect(
+            ORACLE.initializeQuestion(
+                questionId,
+                outcomeSlotCount,
+                [],
+                [],
+                90,
+                curDate + 100,
+                false
+            )
+        ).to.be.revertedWith('outcomeSlotCount < 2');
+    });
+        
+    it('should not initialize question with invalid consensus percent (range 51-100)', async () => {
+        const consensusTooLow = 50;
+        const consensusTooHigh = 101;
+
+        await expect(
+            ORACLE.initializeQuestion(
+                questionId,
+                2,
+                [],
+                [],
+                consensusTooLow,
+                curDate + 100,
+                false
+            )
+        ).to.be.revertedWith('consensusPercent has to be in range 51-100');
+
+        await expect(
+            ORACLE.initializeQuestion(
+                questionId,
+                2,
+                [],
+                [],
+                consensusTooHigh,
+                curDate + 100,
+                false
+            )
+        ).to.be.revertedWith('consensusPercent has to be in range 51-100');
+    });
+
+    it('should not initialize question with invalid resolution time - must be in the future', async () => {
+        const currentResolutionTime = curDate;
+        const pastResolutionTime = currentResolutionTime - 100;
+
+        await expect(
+            ORACLE.initializeQuestion(
+                questionId,
+                2,
+                [],
+                [],
+                90,
+                currentResolutionTime,
+                false
+            )
+        ).to.be.revertedWith('Only future events');
+
+        await expect(
+            ORACLE.initializeQuestion(
+                questionId,
+                2,
+                [],
+                [],
+                90,
+                pastResolutionTime,
+                false
+            )
+        ).to.be.revertedWith('Only future events');
+    });
+
+    it ('should successfully initialize question with manual resolution', async () => {
+        const outcomeSlots = 2;
+        const consensus = 90;
+        const resolutionTime = curDate + 100;
+        
+        const tx = await ORACLE.initializeQuestion(
+            questionId,
+            outcomeSlots,
+            [],
+            [],
+            consensus,
+            resolutionTime,
+            false
+        );
+
+        expect(tx).not.to.equal(null);
+        expect(tx.hash).not.to.equal(null);
+
+        const receipt = await tx.wait();
+        expect(receipt).not.to.equal(null);
+        expect(receipt.transactionHash).not.to.equal(null);
+
+        const qData = await ORACLE.question(questionId);
+        expect(qData.automatic).to.equal(false);
+        expect(qData.outcomeSlotCount).to.equal(outcomeSlots);
+        expect(qData.apiSources).to.equal(0);
+        expect(qData.resolutionTime).to.equal(resolutionTime);
+    });
+
+    context('with automatic resolution', async () => {
+        it('should not initialize question if API sources arrays do not match', async () => {
+            const urlAr = [
+                "http://www.nba.com/api",
+                "http://www.bet365.com/api",
+                "http://www.random.com/api",
+            ];
+        
+            const postprocessJqAr = [
+                "",
+                "",
+            ]
+    
+            await expect(
+                ORACLE.initializeQuestion(
+                    questionId,
+                    2,
+                    urlAr,
+                    postprocessJqAr,
+                    90,
+                    curDate + 100,
+                    true
+                )
+            ).to.be.revertedWith('Array mismatch');
+        });
+
+        it('should not initialize question if API sources array is of invalid length (at least 3 API sources)', async () => {
+            const urlAr = [
+                "http://www.nba.com/api",
+                "http://www.bet365.com/api",
+            ];
+        
+            const postprocessJqAr = [
+                "",
+                "",
+            ]
+    
+            await expect(
+                ORACLE.initializeQuestion(
+                    questionId,
+                    2,
+                    urlAr,
+                    postprocessJqAr,
+                    90,
+                    curDate + 100,
+                    true
+                )
+            ).to.be.revertedWith('Oracle requires at least 3 API sources');
+        });
+
+        it('should not initialize question if API sources are duplicated', async () => {
+            const urlAr = [
+                "http://www.nba.com/api",
+                "http://www.nba.com/api",
+                "http://www.nba.com/api",
+            ];
+        
+            const postprocessJqAr = [
+                "",
+                "",
+                "",
+            ]
+    
+            await expect(
+                ORACLE.initializeQuestion(
+                    questionId,
+                    2,
+                    urlAr,
+                    postprocessJqAr,
+                    90,
+                    curDate + 100,
+                    true
+                )
+            ).to.be.revertedWith('jqKey duplicate');
+        });
+
+        it('should successfully initialize question with automatic resolution', async () => {
+            const outcomeSlots = 2;
+            const consensus = 90;
+            const resolutionTime = curDate + 100;
+
+            const urlAr = [
+                "http://www.nba.com/api",
+                "http://www.bet365.com/api",
+                "http://www.random.com/api",
+            ];
+        
+            const postprocessJqAr = [
+                "",
+                "",
+                "",
+            ]
+            
+            const tx = await ORACLE.initializeQuestion(
+                questionId,
+                outcomeSlots,
+                urlAr,
+                postprocessJqAr,
+                consensus,
+                resolutionTime,
+                true
+            );
+    
+            expect(tx).not.to.equal(null);
+            expect(tx.hash).not.to.equal(null);
+    
+            const receipt = await tx.wait();
+            expect(receipt).not.to.equal(null);
+            expect(receipt.transactionHash).not.to.equal(null);
+    
+            const qData = await ORACLE.question(questionId);
+            expect(qData.automatic).to.equal(true);
+            expect(qData.outcomeSlotCount).to.equal(outcomeSlots);
+            expect(qData.apiSources).to.equal(urlAr.length);
+            expect(qData.resolutionTime).to.equal(resolutionTime);
+        });
+    });
+  });
+
 
 });
 

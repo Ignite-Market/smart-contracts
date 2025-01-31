@@ -1,9 +1,54 @@
 const { utils, BigNumber } = require("ethers");
 
+/**
+ * @dev Creates a list of proofs for a given set of results.
+ * @param results List of results.
+ * @returns List of proofs.
+ */
+function createProofList(results) {
+  const proofs = [];
+
+  for (res of results) {
+    proofs.push({
+      merkleProof: [],
+      data: {
+        attestationType: ethers.utils.formatBytes32String("JsonApi"),
+        sourceId: ethers.utils.formatBytes32String("Source_01"),
+        votingRound: 0,
+        lowestUsedTimestamp: 0,
+        requestBody: {
+          url: res.url,
+          postprocessJq: "",
+          abi_signature: ""
+        },
+        responseBody: { 
+          abi_encoded_data: ethers.utils.defaultAbiCoder.encode(
+            [ "uint256" ], 
+            [ res.result ]
+          )
+        }
+      }
+    });
+  }
+
+  return proofs;
+}
+
+/**
+ * @dev Generates a random hex string of a given length.
+ * @param byteLength Length of the hex string.
+ * @returns Random hex string.
+ */
 function randomHex(byteLength) {
   return utils.hexlify(utils.randomBytes(byteLength));
 }
 
+/**
+ * @dev Computes the modular square root of a given number.
+ * @param a Number.
+ * @param p Modulus.
+ * @returns Modular square root.
+ */
 function modularSqrt(a, p) {
   if (a.isZero()) return BigNumber.from(0);
   
@@ -53,6 +98,13 @@ function modularSqrt(a, p) {
   return r;
 }
 
+/**
+ * @dev Computes the modular power of a given base, exponent, and modulus.
+ * @param base Base.
+ * @param exponent Exponent.
+ * @param modulus Modulus.
+ * @returns Modular power.
+ */
 function modPow(base, exponent, modulus) {
   let result = BigNumber.from(1);  // Start with 1
   base = base.mod(modulus);  // Ensure the base is within the modulus
@@ -68,6 +120,12 @@ function modPow(base, exponent, modulus) {
   return result;
 }
 
+/**
+ * @dev Computes the modular inverse of a given number.
+ * @param a Number.
+ * @param p Modulus.
+ * @returns Modular inverse.
+ */
 function modInverse(a, p) {
   // Extended Euclidean Algorithm to find the modular inverse
   let [t, newT] = [BigNumber.from(0), BigNumber.from(1)];
@@ -94,5 +152,6 @@ module.exports = {
   randomHex,
   modInverse,
   modPow,
-  modularSqrt
+  modularSqrt,
+  createProofList
 }

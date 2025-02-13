@@ -185,7 +185,7 @@ contract IgniteOracle is AccessControl {
             // Check if proof actually is valid.
             require(
                 verification.verifyJsonApi(proof),
-                "JsonApi is not confirmed by DA Layer"
+                "Invalid proof (provided)"
             );
 
             // Decode result.

@@ -185,7 +185,7 @@ contract IgniteOracle is AccessControl {
             // Check if proof actually is valid.
             require(
                 verification.verifyJsonApi(proof),
-                "JsonApi is not confirmed by DA Layer"
+                "Invalid proof (provided)"
             );
 
             // Decode result.
@@ -208,13 +208,7 @@ contract IgniteOracle is AccessControl {
             qData.status = Status.VOTING;
 
         } else {
-            qData.status = Status.FINALIZED;
-            qData.winnerIdx = winnerId;
-
-            uint256[] memory payouts = new uint256[](qData.outcomeSlotCount);
-            payouts[winnerId] = 1;
-
-            conditionalTokens.reportPayouts(questionId, payouts);
+            _finalizeAndReportPayout(questionId, winnerId);
         }
     }
 
@@ -241,16 +235,25 @@ contract IgniteOracle is AccessControl {
             questionOutcomeVotes[questionId][outcomeIdx] >= minVotes && 
             questionOutcomeVotes[questionId][outcomeIdx] * 100 / noOfVoters >= qData.consensusPercent
         ) {
-            qData.status = Status.FINALIZED;
-            qData.winnerIdx = outcomeIdx;
-
-            uint256[] memory payouts = new uint256[](qData.outcomeSlotCount);
-            payouts[outcomeIdx] = 1;
-
-            conditionalTokens.reportPayouts(questionId, payouts);
+            _finalizeAndReportPayout(questionId, outcomeIdx);
         }
 
         emit VoteSubmitted(msg.sender, questionId, outcomeIdx);
+    }
+
+    function _finalizeAndReportPayout(
+        bytes32 questionId,
+        uint256 winnerId
+    ) private {
+        Question storage qData = question[questionId];
+
+        qData.status = Status.FINALIZED;
+        qData.winnerIdx = winnerId;
+
+        uint256[] memory payouts = new uint256[](qData.outcomeSlotCount);
+        payouts[winnerId] = 1;
+
+        conditionalTokens.reportPayouts(questionId, payouts);
     }
 
     /**

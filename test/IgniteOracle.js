@@ -1,6 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { createProofList } = require('./helpers/utils')
+const { createProofList } = require('./helpers/utils');
+const { toUtf8CodePoints } = require("ethers/lib/utils");
 
 describe("IgniteOracle", function () {
     let owner, ORACLE, CONDITIONAL_TOKENS, VERIFICATION, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
@@ -86,10 +87,12 @@ describe("IgniteOracle", function () {
                 ]
             )
 
-            await ORACLE.finalizeQuestion(
+            const tx = await ORACLE.finalizeQuestion(
                 questionId,
                 proofs
             );
+
+            const receipt = await tx.wait();
 
             const qData = await ORACLE.question(questionId);
             expect(qData.status).to.equal(STATUS_FINALIZED);

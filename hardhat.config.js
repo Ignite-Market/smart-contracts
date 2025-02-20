@@ -24,9 +24,9 @@ module.exports = {
       },
     ],
   },
-  sourcify: {
-    enabled: false,
-  },
+  // sourcify: {
+  //   enabled: false,
+  // },
   networks: {
     baseSepolia: {
       url: "https://base-sepolia.g.alchemy.com/v2/rGCTaF-9bBmbfeSTu8XivBMqMaqlUgsB",
@@ -70,8 +70,8 @@ module.exports = {
     clear: true,
     flat: true,
   },
-  mocha: {
-    // grep: 'ConditionalTokens',
-    grep: 'IgniteOracle',
-  },
+  // mocha: {
+  //   // grep: 'ConditionalTokens',
+  //   // grep: 'IgniteOracle',
+  // },
 };

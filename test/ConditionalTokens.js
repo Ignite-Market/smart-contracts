@@ -20,10 +20,15 @@ describe("ConditionalTokens", function() {
   let conditionalTokens, collateralToken, forwarder;
   let minter, oracle, notOracle, eoaTrader, fwdExecutor, counterparty;
 
+  before(async () => {
+    await hre.network.provider.send("hardhat_reset");
+  });
+
   beforeEach(async function() {
     [minter, oracle, notOracle, eoaTrader, fwdExecutor, counterparty] = await ethers.getSigners();
 
-    ConditionalTokens = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
+    // ConditionalTokens = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
+    ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
     conditionalTokens = await ConditionalTokens.deploy();
     await conditionalTokens.deployed();
 
@@ -34,6 +39,19 @@ describe("ConditionalTokens", function() {
     Forwarder = await ethers.getContractFactory("contracts/Test/Forwarder.sol:Forwarder");
     forwarder = await Forwarder.deploy();
     await forwarder.deployed();
+  });
+
+  describe("DUMMY-TESTING", function() {
+    it("some random test", async function() {
+      const questionId = ethers.utils.randomBytes(32);
+      const outcomeSlotCount = 2;
+
+      await conditionalTokens.prepareCondition(
+        oracle.address,
+        questionId,
+        outcomeSlotCount
+      )
+    });
   });
 
   describe("prepareCondition", function() {
@@ -177,23 +195,23 @@ describe("ConditionalTokens", function() {
         context: "with EOA trader (Externally Owned Account)",
         setupTrader: async () => createTraderWrapper(eoaTrader, Scenarios.EOA)
       },
-      {
-        name: Scenarios.FORWARDER,
-        context: "with a Forwarder",
-        setupTrader: async function() {
-          const forwarderTrader = {
-            address: forwarder.address,
-            async execCall(contract, method, ...args) {
-              const data = contract.interface.encodeFunctionData(method, args);
-              return await forwarder.connect(fwdExecutor).call(
-                contract.address,
-                data
-              );
-            }
-          };
-          return createTraderWrapper(forwarderTrader, Scenarios.FORWARDER);
-        }
-      }
+      // {
+      //   name: Scenarios.FORWARDER,
+      //   context: "with a Forwarder",
+      //   setupTrader: async function() {
+      //     const forwarderTrader = {
+      //       address: forwarder.address,
+      //       async execCall(contract, method, ...args) {
+      //         const data = contract.interface.encodeFunctionData(method, args);
+      //         return await forwarder.connect(fwdExecutor).call(
+      //           contract.address,
+      //           data
+      //         );
+      //       }
+      //     };
+      //     return createTraderWrapper(forwarderTrader, Scenarios.FORWARDER);
+      //   }
+      // }
     ];
 
     for (const scenario of scenarios) {

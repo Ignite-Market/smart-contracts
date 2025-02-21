@@ -55,6 +55,10 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     uint public fee;
     uint internal feePoolWeight;
 
+    address public treasury;
+    uint public treasuryPercent;
+    uint public constant percentUL = 10000; // upper limit
+
     uint[] outcomeSlotCounts;
     bytes32[][] collectionIds;
     uint[] public positionIds;
@@ -108,16 +112,29 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
 
     function feesWithdrawableBy(address account) public view returns (uint) {
         uint rawAmount = feePoolWeight.mul(balanceOf(account)) / totalSupply();
-        return rawAmount.sub(withdrawnFees[account]);
+
+        // subtract already withdrawn fees (includes treasury fee)
+        rawAmount = rawAmount.sub(withdrawnFees[account]);
+
+        // subtract treasury fee
+        rawAmount = rawAmount.sub(rawAmount.mul(treasuryPercent).div(percentUL));
+
+        return rawAmount;
     }
 
     function withdrawFees(address account) public {
         uint rawAmount = feePoolWeight.mul(balanceOf(account)) / totalSupply();
-        uint withdrawableAmount = rawAmount.sub(withdrawnFees[account]);
-        if(withdrawableAmount > 0){
+        uint pendingAmount = rawAmount.sub(withdrawnFees[account]);
+
+        if(pendingAmount > 0){
             withdrawnFees[account] = rawAmount;
-            totalWithdrawnFees = totalWithdrawnFees.add(withdrawableAmount);
-            require(collateralToken.transfer(account, withdrawableAmount), "withdrawal transfer failed");
+            totalWithdrawnFees = totalWithdrawnFees.add(pendingAmount);
+
+            uint treasuryAmount = pendingAmount.mul(treasuryPercent).div(percentUL);
+            require(collateralToken.transfer(treasury, treasuryAmount), "treasury - withdrawal transfer failed");
+            
+            uint withdrawableAmount = pendingAmount.sub(treasuryAmount);
+            require(collateralToken.transfer(account, withdrawableAmount), "account - withdrawal transfer failed");
         }
     }
 
@@ -377,6 +394,10 @@ contract FixedProductMarketMakerData {
     bytes32[] internal conditionIds;
     uint internal fee;
     uint internal feePoolWeight;
+
+    address internal treasury;
+    uint internal treasuryPercent;
+    uint internal constant percentUL = 10000; // upper limit
 
     uint[] internal outcomeSlotCounts;
     bytes32[][] internal collectionIds;

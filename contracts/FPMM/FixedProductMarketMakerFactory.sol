@@ -15,7 +15,9 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
         ConditionalTokens indexed conditionalTokens,
         IERC20 indexed collateralToken,
         bytes32[] conditionIds,
-        uint fee
+        uint fee,
+        uint treasuryPercent,
+        address treasury
     );
 
     FixedProductMarketMaker public implementationMaster;
@@ -29,8 +31,10 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
             ConditionalTokens _conditionalTokens,
             IERC20 _collateralToken,
             bytes32[] memory _conditionIds,
-            uint _fee
-        ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint));
+            uint _fee,
+            uint _treasuryPercent,
+            address _treasury
+        ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint, uint, address));
 
         _supportedInterfaces[_INTERFACE_ID_ERC165] = true;
         _supportedInterfaces[
@@ -42,6 +46,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
         collateralToken = _collateralToken;
         conditionIds = _conditionIds;
         fee = _fee;
+        treasuryPercent = _treasuryPercent;
+        treasury = _treasury;
 
         uint atomicOutcomeSlotCount = 1;
         outcomeSlotCounts = new uint[](conditionIds.length);
@@ -84,7 +90,9 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
         ConditionalTokens conditionalTokens,
         IERC20 collateralToken,
         bytes32[] calldata conditionIds,
-        uint fee
+        uint fee,
+        uint treasuryPercent,
+        address treasury
     )
         external
         returns (FixedProductMarketMaker)
@@ -94,7 +102,9 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
                 conditionalTokens,
                 collateralToken,
                 conditionIds,
-                fee
+                fee,
+                treasuryPercent,
+                treasury
             ))
         );
         emit FixedProductMarketMakerCreation(
@@ -103,7 +113,9 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
             conditionalTokens,
             collateralToken,
             conditionIds,
-            fee
+            fee,
+            treasuryPercent,
+            treasury
         );
 
         return fixedProductMarketMaker;

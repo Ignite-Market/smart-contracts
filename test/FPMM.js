@@ -8,7 +8,7 @@ const {
 const { randomHex } = require('./helpers/utils.js');
 
 describe('FixedProductMarketMaker', function() {
-    let creator, oracle, investor1, trader, investor2;
+    let creator, oracle, investor1, trader, investor2, treasury;
     const questionId = randomHex(32);
     const numOutcomes = 64;
     let conditionId;
@@ -20,10 +20,11 @@ describe('FixedProductMarketMaker', function() {
     let positionIds;
     let fixedProductMarketMaker;
     const feeFactor = ethers.utils.parseEther("0.003"); // 0.3%
+    const treasuryPercent = 100; // 1%
     let marketMakerPool;
 
     before(async function() {
-        [, creator, oracle, investor1, trader, investor2] = await ethers.getSigners();
+        [, creator, oracle, investor1, trader, investor2, treasury] = await ethers.getSigners();
         
         conditionId = getConditionId(oracle.address, questionId, numOutcomes);
         collectionIds = Array.from(
@@ -51,7 +52,9 @@ describe('FixedProductMarketMaker', function() {
             conditionalTokens.address,
             collateralToken.address,
             [conditionId],
-            feeFactor
+            feeFactor,
+            treasuryPercent,
+            treasury.address
         ];
 
         const fixedProductMarketMakerAddress = await fixedProductMarketMakerFactory
@@ -71,7 +74,9 @@ describe('FixedProductMarketMaker', function() {
                 conditionalTokens.address,
                 collateralToken.address,
                 [conditionId],
-                feeFactor
+                feeFactor,
+                treasuryPercent,
+                treasury.address
             );
 
         fixedProductMarketMaker = await ethers.getContractAt(
@@ -124,6 +129,7 @@ describe('FixedProductMarketMaker', function() {
         await collateralToken.connect(trader).deposit({ value: investmentAmount });
         await collateralToken.connect(trader).approve(fixedProductMarketMaker.address, investmentAmount);
 
+        // feeAmount (LP + treasuryFee)
         const feeAmount = investmentAmount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
         const outcomeTokensToBuy = await fixedProductMarketMaker.calcBuyAmount(investmentAmount, buyOutcomeIndex);
 
@@ -153,12 +159,27 @@ describe('FixedProductMarketMaker', function() {
                 .to.equal(newMarketMakerBalance);
             marketMakerPool[i] = newMarketMakerBalance;
         }
+
+        // collect fees
+        const pendingFees = await fixedProductMarketMaker.feesWithdrawableBy(investor1.address);
+        const treasuryFee = feeAmount.mul(treasuryPercent).div(10000);
+        expect(pendingFees).to.equal(feeAmount.sub(treasuryFee));
+
+        const tx = await fixedProductMarketMaker.withdrawFees(investor1.address);
+        await tx.wait();
+
+        // check if both investor1 + treasury collected expected fee
+        expect(await collateralToken.balanceOf(treasury.address)).to.equal(treasuryFee);
+        expect(await collateralToken.balanceOf(investor1.address)).to.equal(feeAmount.sub(treasuryFee));
+
+        // check if withdrawable fee is now 0
+        expect(await fixedProductMarketMaker.feesWithdrawableBy(investor1.address)).to.equal(0);
     });
 
     it('can sell tokens to it', async function() {
         const returnAmount = ethers.utils.parseEther("0.5");
         const sellOutcomeIndex = 1;
-        
+
         await conditionalTokens.connect(trader).setApprovalForAll(fixedProductMarketMaker.address, true);
 
         const feeAmount = returnAmount.mul(feeFactor).div(
@@ -166,7 +187,6 @@ describe('FixedProductMarketMaker', function() {
         );
 
         const outcomeTokensToSell = await fixedProductMarketMaker.calcSellAmount(returnAmount, sellOutcomeIndex);
-
         await fixedProductMarketMaker.connect(trader).sell(returnAmount, sellOutcomeIndex, outcomeTokensToSell);
 
         expect(await collateralToken.balanceOf(trader.address)).to.equal(returnAmount);

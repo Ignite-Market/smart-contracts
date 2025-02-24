@@ -10,7 +10,7 @@ const { randomHex } = require('./helpers/utils.js');
 describe('FixedProductMarketMaker', function() {
     let creator, oracle, investor1, trader, investor2, treasury;
     const questionId = randomHex(32);
-    const numOutcomes = 64;
+    const numOutcomes = 3; // 64 originally from gnosis tests
     let conditionId;
     let collectionIds;
 
@@ -87,7 +87,7 @@ describe('FixedProductMarketMaker', function() {
 
     const addedFunds1 = ethers.utils.parseEther("10.0");
     const initialDistribution = [];
-    const expectedFundedAmounts = new Array(64).fill(addedFunds1);
+    const expectedFundedAmounts = new Array(numOutcomes).fill(addedFunds1);
 
     it('can be funded', async function() {
         await collateralToken.connect(investor1).deposit({ value: addedFunds1 });
@@ -187,6 +187,28 @@ describe('FixedProductMarketMaker', function() {
         );
 
         const outcomeTokensToSell = await fixedProductMarketMaker.calcSellAmount(returnAmount, sellOutcomeIndex);
+
+        // calc of shares
+        const posIds = [
+            await fixedProductMarketMaker.positionIds(0),
+            await fixedProductMarketMaker.positionIds(1),
+            await fixedProductMarketMaker.positionIds(2),
+        ]
+
+        const marketSharesAmounts = await conditionalTokens.balanceOfBatch(
+            [fixedProductMarketMaker.address,fixedProductMarketMaker.address,fixedProductMarketMaker.address], 
+            posIds
+        );
+
+        const amountOfCollateralToReceive = calcSellAmountInCollateral(
+            outcomeTokensToSell,
+            marketSharesAmounts,
+            sellOutcomeIndex,
+            "0.003" // feeFactor
+        );
+
+        console.log(`amountOfCollateralToReceive: ${ethers.utils.formatEther(amountOfCollateralToReceive)}`);
+
         await fixedProductMarketMaker.connect(trader).sell(returnAmount, sellOutcomeIndex, outcomeTokensToSell);
 
         expect(await collateralToken.balanceOf(trader.address)).to.equal(returnAmount);
@@ -259,5 +281,69 @@ describe('FixedProductMarketMaker', function() {
 
             marketMakerPool[i] = newMarketMakerBalance;
         }
+
+        // await conditionalTokens.me
     });
 });
+
+const Big = require('big.js');
+const { newtonRaphson } = require('@fvictorio/newton-raphson-method');
+
+function calcSellAmountInCollateral(
+    sharesToSellAmount,
+    marketSharesAmounts,
+    sellingOutcomeIndex,
+    marketFee
+  ) {
+    Big.DP = 90;
+  
+    const marketSellingSharesAmounts = new Big(marketSharesAmounts[sellingOutcomeIndex]);
+    const marketNonSellingSharesAmounts = marketSharesAmounts
+      .filter((_, index) => index !== sellingOutcomeIndex)
+      .map(marketShares => new Big(marketShares));
+    const sharesToSell = new Big(sharesToSellAmount);
+  
+    const f = (r) => {
+      /* For three outcomes, where the `x` is the one being sold, the formula is:
+       * f(r) = ((y - R) * (z - R)) * (x  + a - R) - (x * y * z)
+       * where:
+       *   `R` is r / (1 - fee)
+       *   `x`, `y`, `z` are the market maker shares for each outcome, where `x` is the market maker share being sold
+       *   `a` is the amount of outcomes shares that are being sold
+       *   `r` (the unknown) is the amount of collateral that will be returned in exchange of `a` tokens
+       */
+  
+      const R = r.div(1 - marketFee);
+  
+      // ((y - R) * (z - R))
+      const firstTerm = marketNonSellingSharesAmounts
+        .map(h => h.minus(R))
+        .reduce((a, b) => a.mul(b));
+  
+      // (x  + a - R)
+      const secondTerm = marketSellingSharesAmounts.plus(sharesToSell).minus(R);
+  
+      // (x * y * z)
+      const thirdTerm = marketNonSellingSharesAmounts.reduce(
+        (a, b) => a.mul(b),
+        marketSellingSharesAmounts
+      );
+  
+      // ((y - R) * (z - R)) * (x  + a - R) - (x * y * z)
+      return firstTerm.mul(secondTerm).minus(thirdTerm);
+    };
+  
+    /* Newton-Raphson method is used to find the root of a function.
+     * Root of a function is the point where the function touches the x-axis on a graph.
+     * In this case y-axis is the number of outcome tokens / shares.
+     * The x-axis is the number of colleral tokens to be received.
+     * This meaning we want to know how much collateral we need to receive to have 0 outcome tokens / shares.
+     */
+    const r = newtonRaphson(f, 0, { maxIterations: 100 });
+  
+    if (!r) {
+      return null;
+    }
+  
+    return BigInt(r.toFixed(0));
+  };

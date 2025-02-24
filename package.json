@@ -21,7 +21,9 @@
     "hardhat": "2.14.1",
     "hardhat-abi-exporter": "^2.3.1",
     "hardhat-contract-sizer": "^2.1.1",
-    "solidity-coverage": "^0.8.14"
+    "solidity-coverage": "^0.8.14",
+    "big.js": "^6.2.1",
+    "@fvictorio/newton-raphson-method": "^1.0.5"
   },
   "dependencies": {
     "openzeppelin-solidity": "2.3.0",

@@ -207,7 +207,8 @@ describe('FixedProductMarketMaker', function() {
             "0.003" // feeFactor
         );
 
-        console.log(`amountOfCollateralToReceive: ${ethers.utils.formatEther(amountOfCollateralToReceive)}`);
+        // almost the same, due to rounding
+        expect(amountOfCollateralToReceive).to.be.closeTo(returnAmount, 1);
 
         await fixedProductMarketMaker.connect(trader).sell(returnAmount, sellOutcomeIndex, outcomeTokensToSell);
 

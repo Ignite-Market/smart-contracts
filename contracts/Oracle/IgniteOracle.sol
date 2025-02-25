@@ -205,8 +205,15 @@ contract IgniteOracle is AccessControl {
 
             if (winnerId == type(uint256).max) {
 
-                if (jqProcessedCount >= qData.apiSources) {
-                    // Require voting - only if all api jqs were processed
+                /** 
+                  * Require voting - only if:
+                  * 1. all api jqs were processed OR
+                  * 2. resolutionTime + 1 week has passed (fail-safe)
+                  */
+                if (
+                    jqProcessedCount >= qData.apiSources ||
+                    qData.resolutionTime + 7 days <= block.timestamp
+                ) {
                     qData.status = Status.VOTING;
                 }
 

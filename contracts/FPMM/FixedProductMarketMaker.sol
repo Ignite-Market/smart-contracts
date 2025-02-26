@@ -57,6 +57,7 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
 
     address public treasury;
     uint public treasuryPercent;
+    uint public fundingThreshold;
     uint public constant percentUL = 10000; // upper limit
 
     uint[] outcomeSlotCounts;
@@ -64,6 +65,8 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     uint[] public positionIds;
     mapping (address => uint256) withdrawnFees;
     uint internal totalWithdrawnFees;
+
+    uint public fundingAmountTotal;
 
     function getPoolBalances() private view returns (uint[] memory) {
         address[] memory thises = new address[](positionIds.length);
@@ -219,12 +222,21 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
             sendBackAmounts[i] = addedFunds.sub(sendBackAmounts[i]);
         }
 
+        fundingAmountTotal += addedFunds;
+
         emit FPMMFundingAdded(msg.sender, sendBackAmounts, mintAmount);
     }
 
     function removeFunding(uint sharesToBurn)
         external
     {
+        for(uint i = 0; i < conditionIds.length; i++) {
+            require(
+                conditionalTokens.payoutDenominator(conditionIds[i]) > 0, 
+                "cannot remove funding before condition is resolved"
+            );
+        }
+
         uint[] memory poolBalances = getPoolBalances();
 
         uint[] memory sendAmounts = new uint[](poolBalances.length);
@@ -319,6 +331,8 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     }
 
     function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external {
+        require(canTrade(), "trading not allowed");
+
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
 
@@ -336,6 +350,8 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     }
 
     function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external {
+        require(canTrade(), "trading not allowed");
+
         uint outcomeTokensToSell = calcSellAmount(returnAmount, outcomeIndex);
         require(outcomeTokensToSell <= maxOutcomeTokensToSell, "maximum sell amount exceeded");
 
@@ -349,6 +365,23 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
         require(collateralToken.transfer(msg.sender, returnAmount), "return transfer failed");
 
         emit FPMMSell(msg.sender, returnAmount, feeAmount, outcomeIndex, outcomeTokensToSell);
+    }
+
+    function canTrade() public view returns(bool) {
+
+        // Prevent trading before sufficient amount is added to liquidity
+        bool sufficientFunding = fundingAmountTotal >= fundingThreshold;
+
+        // Prevent trading after condition is resolved
+        bool conditionResolved;
+        for(uint i = 0; i < conditionIds.length; i++) {
+            if (conditionalTokens.payoutDenominator(conditionIds[i]) > 0) {
+                conditionResolved = true;
+                break;
+            }
+        }
+        
+        return sufficientFunding && !conditionResolved;
     }
 }
 
@@ -397,7 +430,7 @@ contract FixedProductMarketMakerData {
 
     address internal treasury;
     uint internal treasuryPercent;
-    uint internal constant percentUL = 10000; // upper limit
+    uint public fundingThreshold;
 
     uint[] internal outcomeSlotCounts;
     bytes32[][] internal collectionIds;

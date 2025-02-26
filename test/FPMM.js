@@ -21,6 +21,7 @@ describe('FixedProductMarketMaker', function() {
     let fixedProductMarketMaker;
     const feeFactor = ethers.utils.parseEther("0.003"); // 0.3%
     const treasuryPercent = 100; // 1%
+    const fundingThreshold = ethers.utils.parseUnits("100", 6); // 100 USDC
     let marketMakerPool;
 
     before(async function() {
@@ -47,14 +48,15 @@ describe('FixedProductMarketMaker', function() {
 
     it('can be created by factory', async function() {
         await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
-        
+
         const createArgs = [
             conditionalTokens.address,
             collateralToken.address,
             [conditionId],
             feeFactor,
             treasuryPercent,
-            treasury.address
+            treasury.address,
+            fundingThreshold
         ];
 
         const fixedProductMarketMakerAddress = await fixedProductMarketMakerFactory
@@ -76,7 +78,8 @@ describe('FixedProductMarketMaker', function() {
                 [conditionId],
                 feeFactor,
                 treasuryPercent,
-                treasury.address
+                treasury.address,
+                fundingThreshold
             );
 
         fixedProductMarketMaker = await ethers.getContractAt(
@@ -85,7 +88,11 @@ describe('FixedProductMarketMaker', function() {
         );
     });
 
-    const addedFunds1 = ethers.utils.parseEther("10.0");
+    it('cannot trade before being funded', async function() {
+        expect(await fixedProductMarketMaker.canTrade()).to.equal(false);
+    });
+
+    const addedFunds1 = ethers.utils.parseUnits("100", 6);
     const initialDistribution = [];
     const expectedFundedAmounts = new Array(numOutcomes).fill(addedFunds1);
 
@@ -123,7 +130,7 @@ describe('FixedProductMarketMaker', function() {
     });
 
     it('can buy tokens from it', async function() {
-        const investmentAmount = ethers.utils.parseEther("1.0");
+        const investmentAmount = ethers.utils.parseUnits("10", 6);
         const buyOutcomeIndex = 1;
         
         await collateralToken.connect(trader).deposit({ value: investmentAmount });
@@ -177,7 +184,7 @@ describe('FixedProductMarketMaker', function() {
     });
 
     it('can sell tokens to it', async function() {
-        const returnAmount = ethers.utils.parseEther("0.5");
+        const returnAmount = ethers.utils.parseUnits("5", 6);
         const sellOutcomeIndex = 1;
 
         await conditionalTokens.connect(trader).setApprovalForAll(fixedProductMarketMaker.address, true);
@@ -233,7 +240,7 @@ describe('FixedProductMarketMaker', function() {
         }
     });
 
-    const addedFunds2 = ethers.utils.parseEther("5.0");
+    const addedFunds2 = ethers.utils.parseUnits("50", 6);
     it('can continue being funded', async function() {
         await collateralToken.connect(investor2).deposit({ value: addedFunds2 });
         await collateralToken.connect(investor2).approve(fixedProductMarketMaker.address, addedFunds2);
@@ -257,8 +264,16 @@ describe('FixedProductMarketMaker', function() {
         }
     });
 
-    const burnedShares1 = ethers.utils.parseEther("5.0");
+    const burnedShares1 = ethers.utils.parseUnits("50", 6);
     it('can be defunded', async function() {
+        await expect(
+            fixedProductMarketMaker.connect(investor1).removeFunding(burnedShares1)
+        ).to.be.revertedWith('cannot remove funding before condition is resolved');
+
+        // Resolve condition
+        await conditionalTokens.connect(oracle).reportPayouts(questionId, [1,0,0]);
+
+        // Try to remove funding again
         await fixedProductMarketMaker.connect(investor1).removeFunding(burnedShares1);
 
         expect(await collateralToken.balanceOf(investor1.address)).to.be.gt(0);

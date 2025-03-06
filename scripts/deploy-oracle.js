@@ -7,8 +7,8 @@ async function main() {
 
   const args = [
     signer.address, // admin
-    "0x2346Cfa50e396BeFC2242763eD15Ca0aab1E9a79", // conditionalTokens
-    "0x6160911D481b18ad9d2EBDE9E32866F8eE020FbD", // verification
+    "0x3c1947f48BAA623B264e86cF1ac85AE3FCd09904", // conditionalTokens
+    "0x00fDcdfbc454Aa533eF5b86B698fB6ec82a0Df3E", // verification
     3, // minVotes
   ]
 

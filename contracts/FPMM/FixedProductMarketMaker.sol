@@ -332,6 +332,10 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
 
     function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external {
         require(canTrade(), "trading not allowed");
+        require(
+            investmentAmount.mul(100).div(fundingAmountTotal) <= 10, 
+            "amount can be up to 10% of fundingAmountTotal"
+        );
 
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
@@ -351,6 +355,10 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
 
     function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external {
         require(canTrade(), "trading not allowed");
+        require(
+            returnAmount.mul(100).div(fundingAmountTotal) <= 10, 
+            "amount can be up to 10% of fundingAmountTotal"
+        );
 
         uint outcomeTokensToSell = calcSellAmount(returnAmount, outcomeIndex);
         require(outcomeTokensToSell <= maxOutcomeTokensToSell, "maximum sell amount exceeded");

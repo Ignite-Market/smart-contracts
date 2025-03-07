@@ -42,6 +42,13 @@ module.exports = {
       gasPrice: 'auto',
       explorer: "https://coston2.testnet.flarescan.com/",
     },
+    celestiaTestnet: {
+      url: `https://rpc.opcelestia-raspberry.gelato.digital`,
+      chainId: 123420111,
+      accounts: [privateKeyTestnet], 
+      gasPrice: 'auto',
+      explorer: "https://opcelestia-raspberry.gelatoscout.com/",
+    },
   },
   etherscan: {
     apiKey: {

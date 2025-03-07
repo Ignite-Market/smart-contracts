@@ -3,7 +3,7 @@ const hre = require("hardhat");
 async function main() {
   const [signer] = await ethers.getSigners();
 
-  const ContractF = await hre.ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
+  const ContractF = await hre.ethers.getContractFactory("MockCoin");
 
   const args = []
 
@@ -15,7 +15,7 @@ async function main() {
   await contr.deployed();
 
   console.log(
-    "ConditionalTokens deployed to: %saddress/%s",
+    "MockCoin deployed to: %saddress/%s",
     hre.network.config.explorer,
     contr.address
   );

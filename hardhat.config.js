@@ -70,8 +70,8 @@ module.exports = {
     clear: true,
     flat: true,
   },
-  mocha: {
-    // grep: 'ConditionalTokens',
-    grep: 'IgniteOracle',
-  },
+  // mocha: {
+  //   grep: 'ConditionalTokens',
+  //   grep: 'IgniteOracle',
+  // },
 };

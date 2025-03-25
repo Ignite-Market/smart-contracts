@@ -3,7 +3,7 @@ const hre = require("hardhat");
 async function main() {
   const [signer] = await ethers.getSigners();
 
-  const ContractF = await hre.ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
+  const ContractF = await hre.ethers.getContractFactory("ConditionalTokens");
 
   const args = []
 

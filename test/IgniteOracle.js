@@ -13,6 +13,8 @@ describe("IgniteOracle", function () {
     STATUS_VOTING = 2;
     STATUS_FINALIZED = 3;
 
+    const ONE_WEEK = Number(60 * 60 * 24 * 7);
+
     before(async () => {
         await hre.network.provider.send("hardhat_reset");
     });
@@ -89,7 +91,8 @@ describe("IgniteOracle", function () {
 
             const tx = await ORACLE.finalizeQuestion(
                 questionId,
-                proofs
+                proofs,
+                true
             );
 
             const receipt = await tx.wait();
@@ -142,7 +145,8 @@ describe("IgniteOracle", function () {
 
             await ORACLE.finalizeQuestion(
                 questionId,
-                proofs
+                proofs,
+                true
             );
 
             let qData = await ORACLE.question(questionId);
@@ -190,7 +194,8 @@ describe("IgniteOracle", function () {
 
             await ORACLE.finalizeQuestion(
                 questionId,
-                []
+                [],
+                true
             );
 
             let qData = await ORACLE.question(questionId);
@@ -489,7 +494,7 @@ describe("IgniteOracle", function () {
             const newQuestionId = ethers.utils.formatBytes32String("question_02");
 
             await expect(
-                ORACLE.finalizeQuestion(newQuestionId, [])
+                ORACLE.finalizeQuestion(newQuestionId, [], true)
             ).to.be.revertedWith('Cannot finalize, status != ACTIVE')
         });
 
@@ -509,11 +514,12 @@ describe("IgniteOracle", function () {
 
             await ORACLE.finalizeQuestion(
                 questionId,
-                []
+                [], 
+                true
             );
 
             await expect(
-                ORACLE.finalizeQuestion(questionId, [])
+                ORACLE.finalizeQuestion(questionId, [], true)
             ).to.be.revertedWith('Cannot finalize, status != ACTIVE')
         });
 
@@ -529,7 +535,7 @@ describe("IgniteOracle", function () {
             );
 
             await expect(
-                ORACLE.finalizeQuestion(questionId, [])
+                ORACLE.finalizeQuestion(questionId, [], true)
             ).to.be.revertedWith('Resolution time not reached')
         });
 
@@ -550,7 +556,7 @@ describe("IgniteOracle", function () {
             });
 
             it('should finalize manual resolution question without proofs and go straight to voting phase', async () => {    
-                const tx = await ORACLE.finalizeQuestion(questionId, []);
+                const tx = await ORACLE.finalizeQuestion(questionId, [], true);
 
                 expect(tx).not.to.equal(null);
                 expect(tx.hash).not.to.equal(null);
@@ -593,9 +599,11 @@ describe("IgniteOracle", function () {
             });
 
             it('should not finalize question without proofs', async () => {
-                await expect(
-                    ORACLE.finalizeQuestion(questionId, [])
-                ).to.be.revertedWith('Proofs & apiSources mismatch');
+                const tx = await ORACLE.finalizeQuestion(questionId, [], true);
+                await tx.wait();
+
+                const qData = await ORACLE.question(questionId);
+                expect(qData.status).to.equal(STATUS_ACTIVE);
             });
 
             it('should not finalize question with invalid proofs', async () => {
@@ -630,7 +638,7 @@ describe("IgniteOracle", function () {
                 );
 
                 await expect(
-                    ORACLE.finalizeQuestion(questionId, proofs)
+                    ORACLE.finalizeQuestion(questionId, proofs, true)
                 ).to.be.revertedWith('Proof for invalid questionId');
             });
 
@@ -645,7 +653,7 @@ describe("IgniteOracle", function () {
                 );
 
                 await expect(
-                    ORACLE.finalizeQuestion(questionId, proofs)
+                    ORACLE.finalizeQuestion(questionId, proofs, true)
                 ).to.be.revertedWith('Duplicate proof');
             });
 
@@ -658,7 +666,7 @@ describe("IgniteOracle", function () {
                     ]
                 );
 
-                const tx = await ORACLE.finalizeQuestion(questionId, proofs);
+                const tx = await ORACLE.finalizeQuestion(questionId, proofs, true);
 
                 expect(tx).not.to.equal(null);
                 expect(tx.hash).not.to.equal(null);
@@ -701,7 +709,7 @@ describe("IgniteOracle", function () {
                     ]
                 );
 
-                const tx = await ORACLE.finalizeQuestion(newQuestionId, proofs);
+                const tx = await ORACLE.finalizeQuestion(newQuestionId, proofs, true);
 
                 expect(tx).not.to.equal(null);
                 expect(tx.hash).not.to.equal(null);
@@ -711,6 +719,47 @@ describe("IgniteOracle", function () {
                 expect(receipt.transactionHash).not.to.equal(null);
 
                 const qData = await ORACLE.question(newQuestionId);
+                expect(qData.status).to.equal(STATUS_VOTING);
+                expect(qData.winnerIdx).to.equal(ethers.constants.MaxUint256);
+            });
+
+            it('should finalize without any proof and go to voting phase if proof is not provided in 1 week after resolution time', async () => {    
+                const newQuestionId = ethers.utils.formatBytes32String("question_02");
+                const newUrlAr = [
+                    "http://www.nba.com/api/new",
+                    "http://www.bet365.com/api/new",
+                    "http://www.random.com/api/new",
+                ];
+
+                await ORACLE.initializeQuestion(
+                    newQuestionId,
+                    outcomeSlotCount,
+                    newUrlAr,
+                    postprocessJqAr,
+                    100,
+                    curDate + 100,
+                    true
+                );
+
+                // Try to finalize without proof before resolutionTime + 1 week has passed
+                await ethers.provider.send("evm_increaseTime", [100]);
+                curDate += 100;
+
+                let tx = await ORACLE.finalizeQuestion(newQuestionId, [], true);
+                await tx.wait();
+
+                let qData = await ORACLE.question(newQuestionId);
+                expect(qData.status).to.equal(STATUS_ACTIVE);
+                expect(qData.winnerIdx).to.equal(ethers.constants.MaxUint256);
+
+                // Try to finalize without proof AFTER resolutionTime + 1 week has passed
+                await ethers.provider.send("evm_increaseTime", [ONE_WEEK]);
+                curDate += ONE_WEEK;
+
+                tx = await ORACLE.finalizeQuestion(newQuestionId, [], true);
+                await tx.wait();
+
+                qData = await ORACLE.question(newQuestionId);
                 expect(qData.status).to.equal(STATUS_VOTING);
                 expect(qData.winnerIdx).to.equal(ethers.constants.MaxUint256);
             });
@@ -781,7 +830,8 @@ describe("IgniteOracle", function () {
 
                 await ORACLE.finalizeQuestion(
                     questionId,
-                    proofs
+                    proofs,
+                    true
                 );
             });
 

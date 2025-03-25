@@ -24,9 +24,9 @@ module.exports = {
       },
     ],
   },
-  sourcify: {
-    enabled: false,
-  },
+  // sourcify: {
+  //   enabled: false,
+  // },
   networks: {
     baseSepolia: {
       url: "https://base-sepolia.g.alchemy.com/v2/rGCTaF-9bBmbfeSTu8XivBMqMaqlUgsB",
@@ -52,7 +52,8 @@ module.exports = {
   },
   etherscan: {
     apiKey: {
-      baseSepolia: baseSepoliaApiKey
+      baseSepolia: baseSepoliaApiKey,
+      coston2: "coston2", // apiKey is not required, just set a placeholder
     },
     customChains: [
       {
@@ -63,6 +64,14 @@ module.exports = {
          browserURL: "https://sepolia.basescan.org"
         }
       },
+      {
+        network: "coston2",
+        chainId: 114,
+        urls: {
+          apiURL: "https://api.routescan.io/v2/network/testnet/evm/114/etherscan",
+          browserURL: "https://coston2.testnet.flarescan.com"
+        }
+      }
     ],
   },
   abiExporter: {
@@ -71,7 +80,7 @@ module.exports = {
     flat: true,
   },
   // mocha: {
-  //   grep: 'ConditionalTokens',
-  //   grep: 'IgniteOracle',
+  //   // grep: 'ConditionalTokens',
+  //   // grep: 'IgniteOracle',
   // },
 };

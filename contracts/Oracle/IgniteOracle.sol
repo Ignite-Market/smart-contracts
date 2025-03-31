@@ -43,6 +43,7 @@ contract IgniteOracle is AccessControl {
         uint256 outcomeSlotCount; // >= 2
         uint256 apiSources; // >= 3
         uint256 consensusPercent; // 51 - 100
+        uint256 endTime; // > block.timestamp
         uint256 resolutionTime; // > block.timestamp
         uint256[] apiResolution;
         uint256 winnerIdx; // by default type(uint256).max
@@ -94,6 +95,7 @@ contract IgniteOracle is AccessControl {
         string[] memory urlAr,
         string[] memory postprocessJqAr,
         uint256 consensusPercent,
+        uint256 endTime,
         uint256 resolutionTime,
         bool automatic
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -104,7 +106,11 @@ contract IgniteOracle is AccessControl {
             consensusPercent >= 51 && consensusPercent <= 100,
             "consensusPercent has to be in range 51-100"
         );
-        require(resolutionTime > block.timestamp, "Only future events");
+        require(endTime > block.timestamp, "endTime has to be in the future.");
+        require(
+            resolutionTime > endTime, 
+            "Resolution time has to be later than endTime."
+        );
 
         // If resolution is automatic require API sources.
         if (automatic) {
@@ -118,6 +124,7 @@ contract IgniteOracle is AccessControl {
             outcomeSlotCount: outcomeSlotCount,
             apiSources: urlAr.length,
             consensusPercent: consensusPercent,
+            endTime: endTime,
             resolutionTime: resolutionTime,
             apiResolution: new uint256[](outcomeSlotCount),
             winnerIdx: type(uint256).max
@@ -155,7 +162,7 @@ contract IgniteOracle is AccessControl {
         Question storage qData = question[questionId];
 
         require(qData.status == Status.ACTIVE, "Cannot finalize, status != ACTIVE");
-        require(qData.resolutionTime <= block.timestamp, "Resolution time not reached");
+        require(qData.endTime <= block.timestamp, "End time not reached");
 
         // If resolution is not automatic go straight to voting phase.
         if (!qData.automatic) {
@@ -208,11 +215,11 @@ contract IgniteOracle is AccessControl {
                 /** 
                   * Require voting - only if:
                   * 1. all api jqs were processed OR
-                  * 2. resolutionTime + 1 week has passed (fail-safe)
+                  * 2. resolutionTime has passed (fail-safe)
                   */
                 if (
                     jqProcessedCount >= qData.apiSources ||
-                    qData.resolutionTime + 7 days <= block.timestamp
+                    qData.resolutionTime <= block.timestamp
                 ) {
                     qData.status = Status.VOTING;
                 }

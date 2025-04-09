@@ -58,6 +58,7 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     address public treasury;
     uint public treasuryPercent;
     uint public fundingThreshold;
+    uint public endTime;
     uint public constant percentUL = 10000; // upper limit
 
     uint[] outcomeSlotCounts;
@@ -376,20 +377,8 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     }
 
     function canTrade() public view returns(bool) {
-
-        // Prevent trading before sufficient amount is added to liquidity
-        bool sufficientFunding = fundingAmountTotal >= fundingThreshold;
-
-        // Prevent trading after condition is resolved
-        bool conditionResolved;
-        for(uint i = 0; i < conditionIds.length; i++) {
-            if (conditionalTokens.payoutDenominator(conditionIds[i]) > 0) {
-                conditionResolved = true;
-                break;
-            }
-        }
-        
-        return sufficientFunding && !conditionResolved;
+        // Prevent trading before sufficient amount is added to liquidity & endTime has not passed
+        return fundingAmountTotal >= fundingThreshold && block.timestamp < endTime;
     }
 }
 
@@ -438,7 +427,8 @@ contract FixedProductMarketMakerData {
 
     address internal treasury;
     uint internal treasuryPercent;
-    uint public fundingThreshold;
+    uint internal fundingThreshold;
+    uint internal endTime;
 
     uint[] internal outcomeSlotCounts;
     bytes32[][] internal collectionIds;

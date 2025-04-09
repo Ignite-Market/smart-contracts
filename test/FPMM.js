@@ -23,6 +23,8 @@ describe('FixedProductMarketMaker', function() {
     const treasuryPercent = 100; // 1%
     const fundingThreshold = ethers.utils.parseUnits("100", 6); // 100 USDC
     let marketMakerPool;
+    const DAY = 60 * 60 * 24;
+    const endTime = Math.floor(new Date().getTime() / 1000) + DAY;
 
     before(async function() {
         [, creator, oracle, investor1, trader, investor2, treasury] = await ethers.getSigners();
@@ -56,7 +58,8 @@ describe('FixedProductMarketMaker', function() {
             feeFactor,
             treasuryPercent,
             treasury.address,
-            fundingThreshold
+            fundingThreshold,
+            endTime
         ];
 
         const fixedProductMarketMakerAddress = await fixedProductMarketMakerFactory
@@ -79,7 +82,8 @@ describe('FixedProductMarketMaker', function() {
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
-                fundingThreshold
+                fundingThreshold,
+                endTime
             );
 
         fixedProductMarketMaker = await ethers.getContractAt(

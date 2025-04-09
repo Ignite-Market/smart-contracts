@@ -18,7 +18,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
         uint fee,
         uint treasuryPercent,
         address treasury,
-        uint fundingThreshold
+        uint fundingThreshold,
+        uint endTime
     );
 
     FixedProductMarketMaker public implementationMaster;
@@ -35,8 +36,9 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
             uint _fee,
             uint _treasuryPercent,
             address _treasury,
-            uint _fundingThreshold
-        ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint, uint, address, uint));
+            uint _fundingThreshold,
+            uint _endTime
+        ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint, uint, address, uint, uint));
 
         _supportedInterfaces[_INTERFACE_ID_ERC165] = true;
         _supportedInterfaces[
@@ -51,6 +53,7 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
         treasuryPercent = _treasuryPercent;
         treasury = _treasury;
         fundingThreshold = _fundingThreshold;
+        endTime = _endTime;
 
         uint atomicOutcomeSlotCount = 1;
         outcomeSlotCounts = new uint[](conditionIds.length);
@@ -96,7 +99,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
         uint fee,
         uint treasuryPercent,
         address treasury,
-        uint fundingThreshold
+        uint fundingThreshold,
+        uint endTime
     )
         external
         returns (FixedProductMarketMaker)
@@ -109,7 +113,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
                 fee,
                 treasuryPercent,
                 treasury,
-                fundingThreshold
+                fundingThreshold,
+                endTime
             ))
         );
         emit FixedProductMarketMakerCreation(
@@ -121,7 +126,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
             fee,
             treasuryPercent,
             treasury,
-            fundingThreshold
+            fundingThreshold,
+            endTime
         );
 
         return fixedProductMarketMaker;

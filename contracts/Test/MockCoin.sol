@@ -3,8 +3,8 @@ import { ERC20Mintable } from "openzeppelin-solidity/contracts/token/ERC20/ERC20
 
 contract MockCoin is ERC20Mintable {
 
-    string public name = "Trend"; 
-    string public symbol = "TREND";
+    string public name = "Mock"; 
+    string public symbol = "MCK";
 
     constructor() public {
         _mint(msg.sender, 100_000 * 10**6);

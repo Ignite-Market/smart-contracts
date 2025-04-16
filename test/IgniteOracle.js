@@ -13,6 +13,8 @@ describe("IgniteOracle", function () {
     STATUS_VOTING = 2;
     STATUS_FINALIZED = 3;
 
+    const ONE_WEEK = Number(60 * 60 * 24 * 7);
+
     before(async () => {
         await hre.network.provider.send("hardhat_reset");
     });
@@ -62,6 +64,7 @@ describe("IgniteOracle", function () {
             ]
 
             const consensusPercent = 59;
+            const endTime = curDate + 50; // 50 sec in future
             const resolutionTime = curDate + 100; // 100 sec in future
             const automaticResolution = true;
 
@@ -71,11 +74,12 @@ describe("IgniteOracle", function () {
                 urlAr,
                 postprocessJqAr,
                 consensusPercent,
+                endTime,
                 resolutionTime,
                 automaticResolution
             );
 
-            await ethers.provider.send("evm_increaseTime", [100]);
+            await ethers.provider.send("evm_increaseTime", [50]);
             curDate += 100;
 
             // Finalize question
@@ -89,7 +93,8 @@ describe("IgniteOracle", function () {
 
             const tx = await ORACLE.finalizeQuestion(
                 questionId,
-                proofs
+                proofs,
+                true
             );
 
             const receipt = await tx.wait();
@@ -115,6 +120,7 @@ describe("IgniteOracle", function () {
             ]
 
             const consensusPercent = 90;
+            const endTime = curDate + 50; // 50 sec in future
             const resolutionTime = curDate + 100; // 100 sec in future
             const automaticResolution = true;
 
@@ -124,6 +130,7 @@ describe("IgniteOracle", function () {
                 urlAr,
                 postprocessJqAr,
                 consensusPercent,
+                endTime,
                 resolutionTime,
                 automaticResolution
             );
@@ -142,7 +149,8 @@ describe("IgniteOracle", function () {
 
             await ORACLE.finalizeQuestion(
                 questionId,
-                proofs
+                proofs,
+                true
             );
 
             let qData = await ORACLE.question(questionId);
@@ -171,6 +179,7 @@ describe("IgniteOracle", function () {
             const outcomeSlotCount = 2;
 
             const consensusPercent = 60;
+            const endTime = curDate + 50; // 50 sec in future
             const resolutionTime = curDate + 100; // 100 sec in future
             const automaticResolution = false;
 
@@ -180,6 +189,7 @@ describe("IgniteOracle", function () {
                 [],
                 [],
                 consensusPercent,
+                endTime,
                 resolutionTime,
                 automaticResolution
             );
@@ -190,7 +200,8 @@ describe("IgniteOracle", function () {
 
             await ORACLE.finalizeQuestion(
                 questionId,
-                []
+                [],
+                true
             );
 
             let qData = await ORACLE.question(questionId);
@@ -232,6 +243,7 @@ describe("IgniteOracle", function () {
                 [],
                 [],
                 90,
+                curDate + 50,
                 curDate + 100,
                 false
             );
@@ -243,6 +255,7 @@ describe("IgniteOracle", function () {
                     [],
                     [],
                     90,
+                    curDate + 50,
                     curDate + 100,
                     false
                 )
@@ -259,6 +272,7 @@ describe("IgniteOracle", function () {
                     [],
                     [],
                     90,
+                    curDate + 50,
                     curDate + 100,
                     false
                 )
@@ -276,6 +290,7 @@ describe("IgniteOracle", function () {
                     [],
                     [],
                     consensusTooLow,
+                    curDate + 50,
                     curDate + 100,
                     false
                 )
@@ -288,6 +303,7 @@ describe("IgniteOracle", function () {
                     [],
                     [],
                     consensusTooHigh,
+                    curDate + 50,
                     curDate + 100,
                     false
                 )
@@ -295,6 +311,7 @@ describe("IgniteOracle", function () {
         });
 
         it('should not initialize question with invalid resolution time - must be in the future', async () => {
+            const endTime = curDate + 50;
             const currentResolutionTime = curDate;
             const pastResolutionTime = currentResolutionTime - 100;
 
@@ -305,10 +322,11 @@ describe("IgniteOracle", function () {
                     [],
                     [],
                     90,
+                    endTime,
                     currentResolutionTime,
                     false
                 )
-            ).to.be.revertedWith('Only future events');
+            ).to.be.revertedWith('Resolution time has to be later than endTime.');
 
             await expect(
                 ORACLE.initializeQuestion(
@@ -317,15 +335,49 @@ describe("IgniteOracle", function () {
                     [],
                     [],
                     90,
+                    endTime,
                     pastResolutionTime,
                     false
                 )
-            ).to.be.revertedWith('Only future events');
+            ).to.be.revertedWith('Resolution time has to be later than endTime.');
         });
 
-        it ('should successfully initialize question with manual resolution', async () => {
+        it('should not initialize question with invalid end time - must be in the future', async () => {
+            const endTime = curDate;
+            const pastEndTime = curDate - 10;
+            const resolutionTime = curDate + 100;
+
+            await expect(
+                ORACLE.initializeQuestion(
+                    questionId,
+                    2,
+                    [],
+                    [],
+                    90,
+                    endTime,
+                    resolutionTime,
+                    false
+                )
+            ).to.be.revertedWith('endTime has to be in the future.');
+
+            await expect(
+                ORACLE.initializeQuestion(
+                    questionId,
+                    2,
+                    [],
+                    [],
+                    90,
+                    pastEndTime,
+                    resolutionTime,
+                    false
+                )
+            ).to.be.revertedWith('endTime has to be in the future.');
+        });
+
+        it('should successfully initialize question with manual resolution', async () => {
             const outcomeSlots = 2;
             const consensus = 90;
+            const endTime = curDate + 50;
             const resolutionTime = curDate + 100;
             
             const tx = await ORACLE.initializeQuestion(
@@ -334,6 +386,7 @@ describe("IgniteOracle", function () {
                 [],
                 [],
                 consensus,
+                endTime,
                 resolutionTime,
                 false
             );
@@ -350,6 +403,7 @@ describe("IgniteOracle", function () {
             expect(qData.automatic).to.equal(false);
             expect(qData.outcomeSlotCount).to.equal(outcomeSlots);
             expect(qData.apiSources).to.equal(0);
+            expect(qData.endTime).to.equal(endTime);
             expect(qData.resolutionTime).to.equal(resolutionTime);
         });
 
@@ -373,6 +427,7 @@ describe("IgniteOracle", function () {
                         urlAr,
                         postprocessJqAr,
                         90,
+                        curDate + 50,
                         curDate + 100,
                         true
                     )
@@ -397,6 +452,7 @@ describe("IgniteOracle", function () {
                         urlAr,
                         postprocessJqAr,
                         90,
+                        curDate + 50,
                         curDate + 100,
                         true
                     )
@@ -423,6 +479,7 @@ describe("IgniteOracle", function () {
                         urlAr,
                         postprocessJqAr,
                         90,
+                        curDate + 50,
                         curDate + 100,
                         true
                     )
@@ -432,6 +489,7 @@ describe("IgniteOracle", function () {
             it('should successfully initialize question with automatic resolution', async () => {
                 const outcomeSlots = 2;
                 const consensus = 90;
+                const endTime = curDate + 50;
                 const resolutionTime = curDate + 100;
 
                 const urlAr = [
@@ -452,6 +510,7 @@ describe("IgniteOracle", function () {
                     urlAr,
                     postprocessJqAr,
                     consensus,
+                    endTime,
                     resolutionTime,
                     true
                 );
@@ -468,6 +527,7 @@ describe("IgniteOracle", function () {
                 expect(qData.automatic).to.equal(true);
                 expect(qData.outcomeSlotCount).to.equal(outcomeSlots);
                 expect(qData.apiSources).to.equal(urlAr.length);
+                expect(qData.endTime).to.equal(endTime);
                 expect(qData.resolutionTime).to.equal(resolutionTime);
             });
         });
@@ -489,7 +549,7 @@ describe("IgniteOracle", function () {
             const newQuestionId = ethers.utils.formatBytes32String("question_02");
 
             await expect(
-                ORACLE.finalizeQuestion(newQuestionId, [])
+                ORACLE.finalizeQuestion(newQuestionId, [], true)
             ).to.be.revertedWith('Cannot finalize, status != ACTIVE')
         });
 
@@ -500,6 +560,7 @@ describe("IgniteOracle", function () {
                 [],
                 [],
                 90,
+                curDate + 50,
                 curDate + 100,
                 false
             );
@@ -509,11 +570,12 @@ describe("IgniteOracle", function () {
 
             await ORACLE.finalizeQuestion(
                 questionId,
-                []
+                [], 
+                true
             );
 
             await expect(
-                ORACLE.finalizeQuestion(questionId, [])
+                ORACLE.finalizeQuestion(questionId, [], true)
             ).to.be.revertedWith('Cannot finalize, status != ACTIVE')
         });
 
@@ -524,13 +586,14 @@ describe("IgniteOracle", function () {
                 [],
                 [],
                 90,
+                curDate + 50,
                 curDate + 100,
                 false
             );
 
             await expect(
-                ORACLE.finalizeQuestion(questionId, [])
-            ).to.be.revertedWith('Resolution time not reached')
+                ORACLE.finalizeQuestion(questionId, [], true)
+            ).to.be.revertedWith('End time not reached')
         });
 
         context('with manual resolution', async () => {
@@ -541,6 +604,7 @@ describe("IgniteOracle", function () {
                     [],
                     [],
                     90,
+                    curDate + 50,
                     curDate + 100,
                     false
                 );
@@ -550,7 +614,7 @@ describe("IgniteOracle", function () {
             });
 
             it('should finalize manual resolution question without proofs and go straight to voting phase', async () => {    
-                const tx = await ORACLE.finalizeQuestion(questionId, []);
+                const tx = await ORACLE.finalizeQuestion(questionId, [], true);
 
                 expect(tx).not.to.equal(null);
                 expect(tx.hash).not.to.equal(null);
@@ -584,18 +648,21 @@ describe("IgniteOracle", function () {
                     urlAr,
                     postprocessJqAr,
                     60,
+                    curDate + 50,
                     curDate + 100,
                     true
                 );
 
-                await ethers.provider.send("evm_increaseTime", [100]);
-                curDate += 100;
+                await ethers.provider.send("evm_increaseTime", [90]);
+                curDate += 90;
             });
 
             it('should not finalize question without proofs', async () => {
-                await expect(
-                    ORACLE.finalizeQuestion(questionId, [])
-                ).to.be.revertedWith('Proofs & apiSources mismatch');
+                const tx = await ORACLE.finalizeQuestion(questionId, [], true);
+                await tx.wait();
+
+                const qData = await ORACLE.question(questionId);
+                expect(qData.status).to.equal(STATUS_ACTIVE);
             });
 
             it('should not finalize question with invalid proofs', async () => {
@@ -617,6 +684,7 @@ describe("IgniteOracle", function () {
                     newUrlAr,
                     newPostprocessJqAr,
                     60,
+                    curDate + 50,
                     curDate + 100,
                     true
                 );
@@ -630,7 +698,7 @@ describe("IgniteOracle", function () {
                 );
 
                 await expect(
-                    ORACLE.finalizeQuestion(questionId, proofs)
+                    ORACLE.finalizeQuestion(questionId, proofs, true)
                 ).to.be.revertedWith('Proof for invalid questionId');
             });
 
@@ -645,7 +713,7 @@ describe("IgniteOracle", function () {
                 );
 
                 await expect(
-                    ORACLE.finalizeQuestion(questionId, proofs)
+                    ORACLE.finalizeQuestion(questionId, proofs, true)
                 ).to.be.revertedWith('Duplicate proof');
             });
 
@@ -658,7 +726,7 @@ describe("IgniteOracle", function () {
                     ]
                 );
 
-                const tx = await ORACLE.finalizeQuestion(questionId, proofs);
+                const tx = await ORACLE.finalizeQuestion(questionId, proofs, true);
 
                 expect(tx).not.to.equal(null);
                 expect(tx.hash).not.to.equal(null);
@@ -686,6 +754,7 @@ describe("IgniteOracle", function () {
                     newUrlAr,
                     postprocessJqAr,
                     100,
+                    curDate + 50,
                     curDate + 100,
                     true
                 );
@@ -701,7 +770,7 @@ describe("IgniteOracle", function () {
                     ]
                 );
 
-                const tx = await ORACLE.finalizeQuestion(newQuestionId, proofs);
+                const tx = await ORACLE.finalizeQuestion(newQuestionId, proofs, true);
 
                 expect(tx).not.to.equal(null);
                 expect(tx.hash).not.to.equal(null);
@@ -711,6 +780,48 @@ describe("IgniteOracle", function () {
                 expect(receipt.transactionHash).not.to.equal(null);
 
                 const qData = await ORACLE.question(newQuestionId);
+                expect(qData.status).to.equal(STATUS_VOTING);
+                expect(qData.winnerIdx).to.equal(ethers.constants.MaxUint256);
+            });
+
+            it('should finalize without any proof and go to voting phase if proof is not provided in 1 week after resolution time', async () => {    
+                const newQuestionId = ethers.utils.formatBytes32String("question_02");
+                const newUrlAr = [
+                    "http://www.nba.com/api/new",
+                    "http://www.bet365.com/api/new",
+                    "http://www.random.com/api/new",
+                ];
+
+                await ORACLE.initializeQuestion(
+                    newQuestionId,
+                    outcomeSlotCount,
+                    newUrlAr,
+                    postprocessJqAr,
+                    100,
+                    curDate + 50,
+                    curDate + 100,
+                    true
+                );
+
+                // Try to finalize without proof before resolutionTime
+                await ethers.provider.send("evm_increaseTime", [90]);
+                curDate += 90;
+
+                let tx = await ORACLE.finalizeQuestion(newQuestionId, [], true);
+                await tx.wait();
+
+                let qData = await ORACLE.question(newQuestionId);
+                expect(qData.status).to.equal(STATUS_ACTIVE);
+                expect(qData.winnerIdx).to.equal(ethers.constants.MaxUint256);
+
+                // Try to finalize without proof AFTER resolutionTime
+                await ethers.provider.send("evm_increaseTime", [ONE_WEEK]);
+                curDate += ONE_WEEK;
+
+                tx = await ORACLE.finalizeQuestion(newQuestionId, [], true);
+                await tx.wait();
+
+                qData = await ORACLE.question(newQuestionId);
                 expect(qData.status).to.equal(STATUS_VOTING);
                 expect(qData.winnerIdx).to.equal(ethers.constants.MaxUint256);
             });
@@ -749,6 +860,7 @@ describe("IgniteOracle", function () {
                 urlAr,
                 postprocessJqAr,
                 90,
+                curDate + 50,
                 curDate + 100,
                 automaticResolution
             );
@@ -781,7 +893,8 @@ describe("IgniteOracle", function () {
 
                 await ORACLE.finalizeQuestion(
                     questionId,
-                    proofs
+                    proofs,
+                    true
                 );
             });
 

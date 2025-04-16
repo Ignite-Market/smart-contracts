@@ -28,9 +28,9 @@ module.exports = {
       },
     ],
   },
-  sourcify: {
-    enabled: false,
-  },
+  // sourcify: {
+  //   enabled: false,
+  // },
   networks: {
     baseSepolia: {
       url: "https://base-sepolia.g.alchemy.com/v2/rGCTaF-9bBmbfeSTu8XivBMqMaqlUgsB",
@@ -77,6 +77,14 @@ module.exports = {
           browserURL: "https://coston2.testnet.flarescan.com",
         },
       },
+      {
+        network: "coston2",
+        chainId: 114,
+        urls: {
+          apiURL: "https://api.routescan.io/v2/network/testnet/evm/114/etherscan",
+          browserURL: "https://coston2.testnet.flarescan.com"
+        }
+      }
     ],
   },
   abiExporter: {
@@ -84,8 +92,8 @@ module.exports = {
     clear: true,
     flat: true,
   },
-  mocha: {
-    // grep: 'ConditionalTokens',
-    grep: 'IgniteOracle',
-  },
+  // mocha: {
+  //   // grep: 'ConditionalTokens',
+  //   // grep: 'IgniteOracle',
+  // },
 };

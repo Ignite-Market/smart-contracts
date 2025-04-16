@@ -8,6 +8,15 @@ IgniteMarket contracts represent the core components of the Ignite Market. The t
 - Oracle (FDC Connection)
 
 
+#### Gnosis Prediction Market Smart Contracts
+
+Conditional tokens and FPMM are Gnosis-based smart contracts created for prediction markets. The solution adds minor changes and updates to tests for these contracts. These contracts were also already audited. Regardless, additional audit will be done.
+
+Original source code is available here:
+- https://github.com/gnosis/conditional-tokens-market-makers/
+- https://github.com/gnosis/conditional-tokens-contracts
+
+
 ## Development
 
 > Instructions for development.

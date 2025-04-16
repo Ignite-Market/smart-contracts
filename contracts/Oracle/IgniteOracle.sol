@@ -43,6 +43,7 @@ contract IgniteOracle is AccessControl {
         uint256 outcomeSlotCount; // >= 2
         uint256 apiSources; // >= 3
         uint256 consensusPercent; // 51 - 100
+        uint256 endTime; // > block.timestamp
         uint256 resolutionTime; // > block.timestamp
         uint256[] apiResolution;
         uint256 winnerIdx; // by default type(uint256).max
@@ -51,6 +52,7 @@ contract IgniteOracle is AccessControl {
     mapping(bytes32 => Question) public question;
 
     mapping(bytes32 => bytes32) public jqToQuestionId;
+    mapping(bytes32 => bool) public jqProcessed;
 
     uint256 public noOfVoters;
     mapping(bytes32 => mapping(address => bool)) public hasVoted; // question => voter => true/false
@@ -93,6 +95,7 @@ contract IgniteOracle is AccessControl {
         string[] memory urlAr,
         string[] memory postprocessJqAr,
         uint256 consensusPercent,
+        uint256 endTime,
         uint256 resolutionTime,
         bool automatic
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -103,7 +106,11 @@ contract IgniteOracle is AccessControl {
             consensusPercent >= 51 && consensusPercent <= 100,
             "consensusPercent has to be in range 51-100"
         );
-        require(resolutionTime > block.timestamp, "Only future events");
+        require(endTime > block.timestamp, "endTime has to be in the future.");
+        require(
+            resolutionTime > endTime, 
+            "Resolution time has to be later than endTime."
+        );
 
         // If resolution is automatic require API sources.
         if (automatic) {
@@ -117,6 +124,7 @@ contract IgniteOracle is AccessControl {
             outcomeSlotCount: outcomeSlotCount,
             apiSources: urlAr.length,
             consensusPercent: consensusPercent,
+            endTime: endTime,
             resolutionTime: resolutionTime,
             apiResolution: new uint256[](outcomeSlotCount),
             winnerIdx: type(uint256).max
@@ -144,15 +152,17 @@ contract IgniteOracle is AccessControl {
      * @dev Finalizes question.
      * @param questionId Question ID.
      * @param proofs Proofs array.
+     * @param finalize finalize should be false only if we hit a gas limit.
      */
     function finalizeQuestion(
         bytes32 questionId, 
-        IJsonApi.Proof[] calldata proofs
+        IJsonApi.Proof[] calldata proofs,
+        bool finalize
     ) external {
         Question storage qData = question[questionId];
 
         require(qData.status == Status.ACTIVE, "Cannot finalize, status != ACTIVE");
-        require(qData.resolutionTime <= block.timestamp, "Resolution time not reached");
+        require(qData.endTime <= block.timestamp, "End time not reached");
 
         // If resolution is not automatic go straight to voting phase.
         if (!qData.automatic) {
@@ -160,12 +170,8 @@ contract IgniteOracle is AccessControl {
             return;
         }
 
-        // Allow finalize only if all api proofs are given.
-        require(proofs.length == qData.apiSources, "Proofs & apiSources mismatch");
-
         // Process each API result proof.
         bytes32 jqKey;
-        bytes32[] memory jqKeyDuplicates = new bytes32[](proofs.length);
 
         for (uint256 i = 0; i < proofs.length; i++) {
             IJsonApi.Proof memory proof = proofs[i];
@@ -177,10 +183,8 @@ contract IgniteOracle is AccessControl {
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 
             // Check for proof duplicates.
-            for (uint256 j = 0; j < i; j ++) {
-                require(jqKeyDuplicates[j] != jqKey, "Duplicate proof");
-            }
-            jqKeyDuplicates[i] = jqKey;
+            require(!jqProcessed[jqKey], "Duplicate proof");
+            jqProcessed[jqKey] = true;
 
             // Check if proof actually is valid.
             require(
@@ -194,21 +198,35 @@ contract IgniteOracle is AccessControl {
             qData.apiResolution[outcomeIdx] += 1;
         }
 
-        // Find winner ID.
-        uint256 winnerId = type(uint256).max;
-        for (uint256 i = 0; i < qData.outcomeSlotCount; i++) {
-            if (qData.apiResolution[i] * 100 / qData.apiSources >= qData.consensusPercent) {
-                winnerId = i;
-                break;
+        if (finalize) {
+
+            // Find winner ID.
+            uint256 winnerId = type(uint256).max;
+            uint256 jqProcessedCount;
+            for (uint256 i = 0; i < qData.outcomeSlotCount; i++) {
+                jqProcessedCount += qData.apiResolution[i];
+                if (qData.apiResolution[i] * 100 / qData.apiSources >= qData.consensusPercent) {
+                    winnerId = i;
+                }
             }
-        }
 
-        if (winnerId == type(uint256).max) {
-            // Require voting.
-            qData.status = Status.VOTING;
+            if (winnerId == type(uint256).max) {
 
-        } else {
-            _finalizeAndReportPayout(questionId, winnerId);
+                /** 
+                  * Require voting - only if:
+                  * 1. all api jqs were processed OR
+                  * 2. resolutionTime has passed (fail-safe)
+                  */
+                if (
+                    jqProcessedCount >= qData.apiSources ||
+                    qData.resolutionTime <= block.timestamp
+                ) {
+                    qData.status = Status.VOTING;
+                }
+
+            } else {
+                _finalizeAndReportPayout(questionId, winnerId);
+            }
         }
     }
 

@@ -55,11 +55,19 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     uint public fee;
     uint internal feePoolWeight;
 
+    address public treasury;
+    uint public treasuryPercent;
+    uint public fundingThreshold;
+    uint public endTime;
+    uint public constant percentUL = 10000; // upper limit
+
     uint[] outcomeSlotCounts;
     bytes32[][] collectionIds;
     uint[] public positionIds;
     mapping (address => uint256) withdrawnFees;
     uint internal totalWithdrawnFees;
+
+    uint public fundingAmountTotal;
 
     function getPoolBalances() private view returns (uint[] memory) {
         address[] memory thises = new address[](positionIds.length);
@@ -108,16 +116,29 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
 
     function feesWithdrawableBy(address account) public view returns (uint) {
         uint rawAmount = feePoolWeight.mul(balanceOf(account)) / totalSupply();
-        return rawAmount.sub(withdrawnFees[account]);
+
+        // subtract already withdrawn fees (includes treasury fee)
+        rawAmount = rawAmount.sub(withdrawnFees[account]);
+
+        // subtract treasury fee
+        rawAmount = rawAmount.sub(rawAmount.mul(treasuryPercent).div(percentUL));
+
+        return rawAmount;
     }
 
     function withdrawFees(address account) public {
         uint rawAmount = feePoolWeight.mul(balanceOf(account)) / totalSupply();
-        uint withdrawableAmount = rawAmount.sub(withdrawnFees[account]);
-        if(withdrawableAmount > 0){
+        uint pendingAmount = rawAmount.sub(withdrawnFees[account]);
+
+        if(pendingAmount > 0){
             withdrawnFees[account] = rawAmount;
-            totalWithdrawnFees = totalWithdrawnFees.add(withdrawableAmount);
-            require(collateralToken.transfer(account, withdrawableAmount), "withdrawal transfer failed");
+            totalWithdrawnFees = totalWithdrawnFees.add(pendingAmount);
+
+            uint treasuryAmount = pendingAmount.mul(treasuryPercent).div(percentUL);
+            require(collateralToken.transfer(treasury, treasuryAmount), "treasury - withdrawal transfer failed");
+            
+            uint withdrawableAmount = pendingAmount.sub(treasuryAmount);
+            require(collateralToken.transfer(account, withdrawableAmount), "account - withdrawal transfer failed");
         }
     }
 
@@ -202,12 +223,21 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
             sendBackAmounts[i] = addedFunds.sub(sendBackAmounts[i]);
         }
 
+        fundingAmountTotal += addedFunds;
+
         emit FPMMFundingAdded(msg.sender, sendBackAmounts, mintAmount);
     }
 
     function removeFunding(uint sharesToBurn)
         external
     {
+        for(uint i = 0; i < conditionIds.length; i++) {
+            require(
+                conditionalTokens.payoutDenominator(conditionIds[i]) > 0, 
+                "cannot remove funding before condition is resolved"
+            );
+        }
+
         uint[] memory poolBalances = getPoolBalances();
 
         uint[] memory sendAmounts = new uint[](poolBalances.length);
@@ -302,6 +332,12 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     }
 
     function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external {
+        require(canTrade(), "trading not allowed");
+        require(
+            investmentAmount.mul(100).div(fundingAmountTotal) <= 10, 
+            "amount can be up to 10% of fundingAmountTotal"
+        );
+
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
 
@@ -319,6 +355,12 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
     }
 
     function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external {
+        require(canTrade(), "trading not allowed");
+        require(
+            returnAmount.mul(100).div(fundingAmountTotal) <= 10, 
+            "amount can be up to 10% of fundingAmountTotal"
+        );
+
         uint outcomeTokensToSell = calcSellAmount(returnAmount, outcomeIndex);
         require(outcomeTokensToSell <= maxOutcomeTokensToSell, "maximum sell amount exceeded");
 
@@ -332,6 +374,11 @@ contract FixedProductMarketMaker is ERC20, ERC1155TokenReceiver {
         require(collateralToken.transfer(msg.sender, returnAmount), "return transfer failed");
 
         emit FPMMSell(msg.sender, returnAmount, feeAmount, outcomeIndex, outcomeTokensToSell);
+    }
+
+    function canTrade() public view returns(bool) {
+        // Prevent trading before sufficient amount is added to liquidity & endTime has not passed
+        return fundingAmountTotal >= fundingThreshold && block.timestamp < endTime;
     }
 }
 
@@ -377,6 +424,11 @@ contract FixedProductMarketMakerData {
     bytes32[] internal conditionIds;
     uint internal fee;
     uint internal feePoolWeight;
+
+    address internal treasury;
+    uint internal treasuryPercent;
+    uint internal fundingThreshold;
+    uint internal endTime;
 
     uint[] internal outcomeSlotCounts;
     bytes32[][] internal collectionIds;

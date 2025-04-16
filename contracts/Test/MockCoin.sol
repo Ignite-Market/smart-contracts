@@ -17,4 +17,8 @@ contract MockCoin is ERC20Mintable {
     function faucetMint(address account, uint256 amount) external {
         _mint(account, amount);
     }
+
+    function deposit() external payable {
+        _mint(msg.sender, msg.value);
+    }
 }

@@ -344,4 +344,8 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         return interfaceId == type(IERC1155Receiver).interfaceId || 
                interfaceId == type(IERC165).interfaceId;
     }
+
+    function getFeePoolWeight() external view returns (uint256) {
+        return feePoolWeight;
+    }
 }

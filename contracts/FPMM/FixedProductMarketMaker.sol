@@ -6,7 +6,7 @@ import { ConditionalTokens } from "./../ConditionalTokens/ConditionalTokens.sol"
 import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
 import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts/interfaces/IERC165.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 library CeilDiv {
     function ceildiv(uint x, uint y) internal pure returns (uint) {

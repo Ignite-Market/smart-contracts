@@ -157,7 +157,7 @@ describe("IgniteOracle", function () {
             expect(qData.status).to.equal(STATUS_VOTING);
 
             await expect(ORACLE.vote(questionId, 0)).to.be.revertedWith(
-                `AccessControl: account ${owner.address.toLowerCase()} is missing role ${VOTER_ROLE}`
+                `AccessControlUnauthorizedAccount("${owner.address}", "${VOTER_ROLE}")`
             );
 
             // voter 1
@@ -208,7 +208,7 @@ describe("IgniteOracle", function () {
             expect(qData.status).to.equal(STATUS_VOTING);
 
             await expect(ORACLE.vote(questionId, 0)).to.be.revertedWith(
-                `AccessControl: account ${owner.address.toLowerCase()} is missing role ${VOTER_ROLE}`
+                `AccessControlUnauthorizedAccount("${owner.address}", "${VOTER_ROLE}")`
             );
 
             // voter 1
@@ -869,7 +869,7 @@ describe("IgniteOracle", function () {
         context('without the correct VOTING status', () => {
             it('should not vote if without voter role', async () => {
                 await expect(ORACLE.connect(noRoleVoter).vote(questionId, 0)).to.be.revertedWith(
-                    `AccessControl: account ${noRoleVoter.address.toLowerCase()} is missing role ${VOTER_ROLE}`
+                    `AccessControlUnauthorizedAccount("${noRoleVoter.address}", "${VOTER_ROLE}")`
                 );
             });
 
@@ -900,7 +900,7 @@ describe("IgniteOracle", function () {
 
             it('should not vote if without voter role', async () => {
                 await expect(ORACLE.connect(noRoleVoter).vote(questionId, 0)).to.be.revertedWith(
-                    `AccessControl: account ${noRoleVoter.address.toLowerCase()} is missing role ${VOTER_ROLE}`
+                    `AccessControlUnauthorizedAccount("${noRoleVoter.address}", "${VOTER_ROLE}")`
                 );
             });
 

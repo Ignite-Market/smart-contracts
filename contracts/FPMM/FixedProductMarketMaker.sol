@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ConditionalTokens } from "./../ConditionalTokens/ConditionalTokens.sol";
 import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
@@ -17,7 +16,6 @@ library CeilDiv {
 }
 
 contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
-    using SafeMath for uint;
     using CeilDiv for uint;
 
     uint constant ONE = 10**18;
@@ -155,11 +153,11 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
             }
 
             for(uint i = 0; i < poolBalances.length; i++) {
-                uint remaining = addedFunds.mul(poolBalances[i]) / poolWeight;
-                sendBackAmounts[i] = addedFunds.sub(remaining);
+                uint remaining = (addedFunds * poolBalances[i]) / poolWeight;
+                sendBackAmounts[i] = addedFunds - remaining;
             }
 
-            mintAmount = addedFunds.mul(poolShareSupply) / poolWeight;
+            mintAmount = (addedFunds * poolShareSupply) / poolWeight;
         } else {
             if(distributionHint.length > 0) {
                 require(distributionHint.length == positionIds.length, "hint length off");
@@ -169,9 +167,9 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
                 }
 
                 for(uint i = 0; i < distributionHint.length; i++) {
-                    uint remaining = addedFunds.mul(distributionHint[i]) / maxHint;
+                    uint remaining = (addedFunds * distributionHint[i]) / maxHint;
                     require(remaining > 0, "must hint a valid distribution");
-                    sendBackAmounts[i] = addedFunds.sub(remaining);
+                    sendBackAmounts[i] = addedFunds - remaining;
                 }
             }
 
@@ -187,7 +185,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         conditionalTokens.safeBatchTransferFrom(address(this), msg.sender, positionIds, sendBackAmounts, "");
 
         for (uint i = 0; i < sendBackAmounts.length; i++) {
-            sendBackAmounts[i] = addedFunds.sub(sendBackAmounts[i]);
+            sendBackAmounts[i] = addedFunds - sendBackAmounts[i];
         }
 
         fundingAmountTotal += addedFunds;
@@ -204,12 +202,12 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         uint poolShareSupply = totalSupply();
 
         for(uint i = 0; i < poolBalances.length; i++) {
-            sendAmounts[i] = poolBalances[i].mul(sharesToBurn) / poolShareSupply;
+            sendAmounts[i] = (poolBalances[i] * sharesToBurn) / poolShareSupply;
         }
 
         uint collateralRemovedFromFeePool = collateralToken.balanceOf(address(this));
         _burn(msg.sender, sharesToBurn);
-        collateralRemovedFromFeePool = collateralRemovedFromFeePool.sub(collateralToken.balanceOf(address(this)));
+        collateralRemovedFromFeePool = collateralRemovedFromFeePool - collateralToken.balanceOf(address(this));
 
         conditionalTokens.safeBatchTransferFrom(address(this), msg.sender, positionIds, sendAmounts, "");
         emit FPMMFundingRemoved(msg.sender, sendAmounts, collateralRemovedFromFeePool, sharesToBurn);
@@ -217,15 +215,15 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
 
     function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external {
         require(canTrade(), "trading not allowed");
-        require(investmentAmount.mul(100).div(fundingAmountTotal) <= 10, "amount can be up to 10% of fundingAmountTotal");
+        require((investmentAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
 
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
 
         require(collateralToken.transferFrom(msg.sender, address(this), investmentAmount), "cost transfer failed");
-        uint feeAmount = investmentAmount.mul(fee) / ONE;
-        feePoolWeight = feePoolWeight.add(feeAmount);
-        uint investmentAmountMinusFees = investmentAmount.sub(feeAmount);
+        uint feeAmount = (investmentAmount * fee) / ONE;
+        feePoolWeight += feeAmount;
+        uint investmentAmountMinusFees = investmentAmount - feeAmount;
 
         require(collateralToken.approve(address(conditionalTokens), investmentAmountMinusFees), "approval for splits failed");
         splitPositionThroughAllConditions(investmentAmountMinusFees);
@@ -236,15 +234,15 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
 
     function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external {
         require(canTrade(), "trading not allowed");
-        require(returnAmount.mul(100).div(fundingAmountTotal) <= 10, "amount can be up to 10% of fundingAmountTotal");
+        require((returnAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
 
         uint outcomeTokensToSell = calcSellAmount(returnAmount, outcomeIndex);
         require(outcomeTokensToSell <= maxOutcomeTokensToSell, "maximum sell amount exceeded");
 
         conditionalTokens.safeTransferFrom(msg.sender, address(this), positionIds[outcomeIndex], outcomeTokensToSell, "");
-        uint feeAmount = returnAmount.mul(fee) / (ONE.sub(fee));
-        feePoolWeight = feePoolWeight.add(feeAmount);
-        uint returnAmountPlusFees = returnAmount.add(feeAmount);
+        uint feeAmount = (returnAmount * fee) / (ONE - fee);
+        feePoolWeight += feeAmount;
+        uint returnAmountPlusFees = returnAmount + feeAmount;
 
         mergePositionsThroughAllConditions(returnAmountPlusFees);
         require(collateralToken.transfer(msg.sender, returnAmount), "return transfer failed");
@@ -256,19 +254,19 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         require(outcomeIndex < positionIds.length, "invalid outcome index");
 
         uint[] memory poolBalances = getPoolBalances();
-        uint investmentAmountMinusFees = investmentAmount.sub(investmentAmount.mul(fee) / ONE);
+        uint investmentAmountMinusFees = investmentAmount - (investmentAmount * fee) / ONE;
         uint buyTokenPoolBalance = poolBalances[outcomeIndex];
-        uint endingOutcomeBalance = buyTokenPoolBalance.mul(ONE);
+        uint endingOutcomeBalance = buyTokenPoolBalance * ONE;
 
         for(uint i = 0; i < poolBalances.length; i++) {
             if(i != outcomeIndex) {
                 uint poolBalance = poolBalances[i];
-                endingOutcomeBalance = endingOutcomeBalance.mul(poolBalance).ceildiv(poolBalance.add(investmentAmountMinusFees));
+                endingOutcomeBalance = endingOutcomeBalance * poolBalance / (poolBalance + investmentAmountMinusFees);
             }
         }
 
         require(endingOutcomeBalance > 0, "must have non-zero balances");
-        return buyTokenPoolBalance.add(investmentAmountMinusFees).sub(endingOutcomeBalance.ceildiv(ONE));
+        return buyTokenPoolBalance + investmentAmountMinusFees - endingOutcomeBalance / ONE;
     }
 
     function withdrawFees(address account) public {
@@ -303,19 +301,19 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         require(outcomeIndex < positionIds.length, "invalid outcome index");
 
         uint[] memory poolBalances = getPoolBalances();
-        uint returnAmountPlusFees = returnAmount.mul(ONE) / ONE.sub(fee);
+        uint returnAmountPlusFees = returnAmount * ONE / (ONE - fee);
         uint sellTokenPoolBalance = poolBalances[outcomeIndex];
-        uint endingOutcomeBalance = sellTokenPoolBalance.mul(ONE);
+        uint endingOutcomeBalance = sellTokenPoolBalance * ONE;
 
         for(uint i = 0; i < poolBalances.length; i++) {
             if(i != outcomeIndex) {
                 uint poolBalance = poolBalances[i];
-                endingOutcomeBalance = endingOutcomeBalance.mul(poolBalance).ceildiv(poolBalance.sub(returnAmountPlusFees));
+                endingOutcomeBalance = endingOutcomeBalance * poolBalance / (poolBalance - returnAmountPlusFees);
             }
         }
 
         require(endingOutcomeBalance > 0, "must have non-zero balances");
-        return returnAmountPlusFees.add(endingOutcomeBalance.ceildiv(ONE)).sub(sellTokenPoolBalance);
+        return returnAmountPlusFees + endingOutcomeBalance / ONE - sellTokenPoolBalance;
     }
 
     function canTrade() public view returns (bool) {

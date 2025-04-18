@@ -1,12 +1,13 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
 
-import "openzeppelin-solidity/contracts/introspection/IERC165.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
     @title ERC-1155 Multi Token Receiver Interface
     @dev See https://eips.ethereum.org/EIPS/eip-1155
 */
-contract IERC1155TokenReceiver is IERC165 {
+interface IERC1155TokenReceiver is IERC165 {
 
     /**
         @dev Handles the receipt of a single ERC1155 token type. This function is

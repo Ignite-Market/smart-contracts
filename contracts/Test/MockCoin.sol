@@ -1,16 +1,15 @@
-pragma solidity ^0.5.1;
-import { ERC20Mintable } from "openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
 
-contract MockCoin is ERC20Mintable {
+import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol";
 
-    string public name = "Mock"; 
-    string public symbol = "MCK";
+contract MockCoin is ERC20PresetMinterPauser {
 
-    constructor() public {
+    constructor() ERC20PresetMinterPauser("Mock", "MCK") {
         _mint(msg.sender, 100_000 * 10**6);
     }
 
-    function decimals() public view returns (uint8) {
+    function decimals() public pure override returns (uint8) {
         return 6;
     }
 

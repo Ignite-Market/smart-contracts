@@ -1,6 +1,8 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
 
 import { ERC1155TokenReceiver } from "../ConditionalTokens/ERC1155/ERC1155TokenReceiver.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract Forwarder is ERC1155TokenReceiver {
     function call(address to, bytes calldata data) external {
@@ -16,6 +18,7 @@ contract Forwarder is ERC1155TokenReceiver {
         bytes calldata /* data */
     )
         external
+        override
         returns(bytes4)
     {
         return this.onERC1155Received.selector;
@@ -29,8 +32,14 @@ contract Forwarder is ERC1155TokenReceiver {
         bytes calldata /* data */
     )
         external
+        override
         returns(bytes4)
     {
         return this.onERC1155BatchReceived.selector;
+    }
+
+  function supportsInterface(bytes4 interfaceId) external view override returns (bool) {
+        return interfaceId == 0x4e2312e0 || 
+               interfaceId == type(IERC165).interfaceId;
     }
 }

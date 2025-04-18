@@ -7,7 +7,7 @@ const {
 } = require('./helpers/id-helpers.js');
 const { randomHex } = require('./helpers/utils.js');
 
-describe('FixedProductMarketMaker', function() {
+describe('FixedProductMarketMakerAmounts', function() {
     let creator, oracle, investor1, trader, investor2, treasury;
     const questionId = randomHex(32);
     const numOutcomes = 2; // 64 originally from gnosis tests
@@ -71,18 +71,57 @@ describe('FixedProductMarketMaker', function() {
             endTime
         ];
 
-        // Create new FPMM
-        const fixedProductMarketMakerAddress = await fixedProductMarketMakerFactory
-            .connect(creator)
-            .callStatic
-            .createFixedProductMarketMaker(...createArgs);
+        // Compute salt off-chain
+        const salt = ethers.utils.keccak256(
+            ethers.utils.defaultAbiCoder.encode(
+                [
+                    "address",      // creator
+                    "string",       // name
+                    "string",       // symbol
+                    "address",      // conditionalTokens
+                    "address",      // collateralToken
+                    "bytes32[]",    // conditionIds
+                    "uint256",      // fee
+                    "uint256",      // treasuryPercent
+                    "address",      // treasury
+                    "uint256",      // fundingThreshold
+                    "uint256"       // endTime
+                ],
+                [
+                    creator.address,
+                    "FPMM Shares",
+                    "FPMM",
+                    conditionalTokens.address,
+                    collateralToken.address,
+                    [conditionId],
+                    feeFactor,
+                    treasuryPercent,
+                    treasury.address,
+                    fundingThreshold,
+                    endTime
+                ]
+            )
+        );
+
+        const predictedAddress = await fixedProductMarketMakerFactory
+            .predictFixedProductMarketMakerAddress(salt);
 
         await fixedProductMarketMakerFactory.connect(creator)
-            .createFixedProductMarketMaker(...createArgs);
+            .createFixedProductMarketMaker(
+                conditionalTokens.address,
+                collateralToken.address,
+                [conditionId],
+                feeFactor,
+                treasuryPercent,
+                treasury.address,
+                fundingThreshold,
+                endTime,
+                salt
+            );
 
         fixedProductMarketMaker = await ethers.getContractAt(
             "FixedProductMarketMaker",
-            fixedProductMarketMakerAddress
+            predictedAddress
         );
 
         // Add funding
@@ -136,18 +175,57 @@ describe('FixedProductMarketMaker', function() {
             endTime
         ];
 
-        // Create new FPMM
-        const fixedProductMarketMakerAddress = await fixedProductMarketMakerFactory
-            .connect(creator)
-            .callStatic
-            .createFixedProductMarketMaker(...createArgs);
+        // Compute salt off-chain
+        const salt = ethers.utils.keccak256(
+            ethers.utils.defaultAbiCoder.encode(
+                [
+                    "address",      // creator
+                    "string",       // name
+                    "string",       // symbol
+                    "address",      // conditionalTokens
+                    "address",      // collateralToken
+                    "bytes32[]",    // conditionIds
+                    "uint256",      // fee
+                    "uint256",      // treasuryPercent
+                    "address",      // treasury
+                    "uint256",      // fundingThreshold
+                    "uint256"       // endTime
+                ],
+                [
+                    creator.address,
+                    "FPMM Shares",
+                    "FPMM",
+                    conditionalTokens.address,
+                    collateralToken.address,
+                    [conditionId],
+                    feeFactor,
+                    treasuryPercent,
+                    treasury.address,
+                    fundingThreshold,
+                    endTime
+                ]
+            )
+        );
+
+        const predictedAddress = await fixedProductMarketMakerFactory
+            .predictFixedProductMarketMakerAddress(salt);
 
         await fixedProductMarketMakerFactory.connect(creator)
-            .createFixedProductMarketMaker(...createArgs);
+            .createFixedProductMarketMaker(
+                conditionalTokens.address,
+                collateralToken.address,
+                [conditionId],
+                feeFactor,
+                treasuryPercent,
+                treasury.address,
+                fundingThreshold,
+                endTime,
+                salt
+            );
 
         fixedProductMarketMaker = await ethers.getContractAt(
             "FixedProductMarketMaker",
-            fixedProductMarketMakerAddress
+            predictedAddress
         );
 
         // Add funding

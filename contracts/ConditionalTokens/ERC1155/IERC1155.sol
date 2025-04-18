@@ -1,12 +1,13 @@
-pragma solidity ^0.5.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
 
-import "openzeppelin-solidity/contracts/introspection/IERC165.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
     @title ERC-1155 Multi Token Standard basic interface
     @dev See https://eips.ethereum.org/EIPS/eip-1155
  */
-contract IERC1155 is IERC165 {
+interface IERC1155 is IERC165 {
     event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
 
     event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values);
@@ -15,9 +16,9 @@ contract IERC1155 is IERC165 {
 
     event URI(string value, uint256 indexed id);
 
-    function balanceOf(address owner, uint256 id) public view returns (uint256);
+    function balanceOf(address owner, uint256 id) external view returns (uint256);
 
-    function balanceOfBatch(address[] memory owners, uint256[] memory ids) public view returns (uint256[] memory);
+    function balanceOfBatch(address[] memory owners, uint256[] memory ids) external view returns (uint256[] memory);
 
     function setApprovalForAll(address operator, bool approved) external;
 

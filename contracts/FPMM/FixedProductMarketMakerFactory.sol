@@ -6,7 +6,7 @@ import { ConditionalTokens } from "./../ConditionalTokens/ConditionalTokens.sol"
 import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
 import { ConstructedCloneFactory } from "./ConstructedCloneFactory.sol";
 import { FixedProductMarketMaker } from "./FixedProductMarketMaker.sol";
-import { ERC1155TokenReceiver } from "./../ConditionalTokens/ERC1155/ERC1155TokenReceiver.sol";
+import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
 contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
     event FixedProductMarketMakerCreation(

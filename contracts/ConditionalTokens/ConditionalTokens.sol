@@ -2,13 +2,12 @@
 pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "./CTHelpers.sol";
-import "hardhat/console.sol";
 
 contract ConditionalTokens is ERC1155 {
 
-    constructor() ERC1155() {}
+    constructor() ERC1155("") {}
 
     /// @dev Emitted upon the successful preparation of a condition.
     /// @param conditionId The condition's ID. This ID may be derived from the other three parameters via ``keccak256(abi.encodePacked(oracle, questionId, outcomeSlotCount))``.
@@ -142,7 +141,7 @@ contract ConditionalTokens is ERC1155 {
             );
         }
 
-        _batchMint(
+        _mintBatch(
             msg.sender,
             positionIds,
             amounts,
@@ -174,7 +173,7 @@ contract ConditionalTokens is ERC1155 {
             positionIds[i] = CTHelpers.getPositionId(collateralToken, CTHelpers.getCollectionId(parentCollectionId, conditionId, indexSet));
             amounts[i] = amount;
         }
-        _batchBurn(
+        _burnBatch(
             msg.sender,
             positionIds,
             amounts
@@ -279,41 +278,7 @@ contract ConditionalTokens is ERC1155 {
         return CTHelpers.getPositionId(collateralToken, collectionId);
     }
 
-   function _burnBatch(address account, uint256[] memory ids, uint256[] memory amounts) internal override {
-        super._burnBatch(account, ids, amounts);
-    }
-    function _beforeTokenTransfer(
-        address operator,
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        bytes memory data
-    ) internal virtual {}
-
-    function onERC1155Received(
-        address operator,
-        address from,
-        uint256 id,
-        uint256 value,
-        bytes calldata data
-    ) external returns(bytes4) {
-        return this.onERC1155Received.selector;
-    }
-
-    function onERC1155BatchReceived(
-        address operator,
-        address from,
-        uint256[] calldata ids,
-        uint256[] calldata values,
-        bytes calldata data
-    ) external returns(bytes4) {
-        return this.onERC1155BatchReceived.selector;
-    }
-
-    function supportsInterface(bytes4 interfaceId) public view override(ERC165Storage, IERC165) returns (bool) {
-        return interfaceId == type(IERC1155).interfaceId || 
-               interfaceId == type(IERC1155TokenReceiver).interfaceId ||
-               super.supportsInterface(interfaceId);
+    function supportsInterface(bytes4 interfaceId) public view override(ERC1155) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }

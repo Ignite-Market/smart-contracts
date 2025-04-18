@@ -5,8 +5,9 @@ import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ConditionalTokens } from "./../ConditionalTokens/ConditionalTokens.sol";
 import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
-import { ERC1155TokenReceiver } from "./../ConditionalTokens/ERC1155/ERC1155TokenReceiver.sol";
+import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts/interfaces/IERC165.sol";
 
 library CeilDiv {
     function ceildiv(uint x, uint y) internal pure returns (uint) {
@@ -15,7 +16,7 @@ library CeilDiv {
     }
 }
 
-contract FixedProductMarketMaker is ERC20Upgradeable, ERC1155TokenReceiver {
+contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
     using SafeMath for uint;
     using CeilDiv for uint;
 
@@ -321,13 +322,28 @@ contract FixedProductMarketMaker is ERC20Upgradeable, ERC1155TokenReceiver {
         return fundingAmountTotal >= fundingThreshold && block.timestamp < endTime;
     }
 
-    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data) external view override returns (bytes4) {
-        if (operator == address(this)) return this.onERC1155Received.selector;
-        return 0x0;
+    function onERC1155Received(
+        address operator,
+        address from,
+        uint256 id,
+        uint256 value,
+        bytes calldata data
+    ) external override returns(bytes4) {
+        return this.onERC1155Received.selector;
     }
 
-    function onERC1155BatchReceived(address operator, address from, uint256[] calldata ids, uint256[] calldata values, bytes calldata data) external view override returns (bytes4) {
-        if (operator == address(this) && from == address(0)) return this.onERC1155BatchReceived.selector;
-        return 0x0;
+    function onERC1155BatchReceived(
+        address operator,
+        address from,
+        uint256[] calldata ids,
+        uint256[] calldata values,
+        bytes calldata data
+    ) external override returns(bytes4) {
+        return this.onERC1155BatchReceived.selector;
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+        return interfaceId == type(IERC1155Receiver).interfaceId || 
+               interfaceId == type(IERC165).interfaceId;
     }
 }

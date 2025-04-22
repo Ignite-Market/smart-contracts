@@ -320,6 +320,31 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         return fundingAmountTotal >= fundingThreshold && block.timestamp < endTime;
     }
 
+    function _update(address from, address to, uint256 amount) internal virtual override {
+        if (from != address(0)) {
+            withdrawFees(from);
+        }
+
+        uint totalSupply = totalSupply();
+        uint withdrawnFeesTransfer = totalSupply == 0 ?
+            amount :
+            feePoolWeight * amount / totalSupply;
+
+        if (from != address(0)) {
+            withdrawnFees[from] = withdrawnFees[from] - withdrawnFeesTransfer;
+            totalWithdrawnFees = totalWithdrawnFees - withdrawnFeesTransfer;
+        } else {
+            feePoolWeight = feePoolWeight + withdrawnFeesTransfer;
+        }
+        if (to != address(0)) {
+            withdrawnFees[to] = withdrawnFees[to] + withdrawnFeesTransfer;
+            totalWithdrawnFees = totalWithdrawnFees + withdrawnFeesTransfer;
+        } else {
+            feePoolWeight = feePoolWeight - withdrawnFeesTransfer;
+        }
+        super._update(from, to, amount);
+    }
+
     function onERC1155Received(
         address operator,
         address from,

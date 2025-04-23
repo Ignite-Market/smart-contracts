@@ -6,8 +6,8 @@ async function main() {
   const ContractF = await hre.ethers.getContractFactory("IgniteOracle");
 
   const args = [
-    signer.address, // admin
-    "0x3c1947f48BAA623B264e86cF1ac85AE3FCd09904", // conditionalTokens
+    '0x5f2B7077a7e5B4fdD97cBb56D9aD02a4f326896d', // 0x5f2B7077a7e5B4fdD97cBb56D9aD02a4f326896d stg admin
+    "0x34997462F89b10F5a5d9b38c13Ce38f6853e370c", // conditionalTokens
     "0x00fDcdfbc454Aa533eF5b86B698fB6ec82a0Df3E", // verification
     3, // minVotes
   ]

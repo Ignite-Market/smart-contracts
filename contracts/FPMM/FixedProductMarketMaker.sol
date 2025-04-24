@@ -2,11 +2,14 @@
 pragma solidity ^0.8.26;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ConditionalTokens } from "./../ConditionalTokens/ConditionalTokens.sol";
 import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
 import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 
 library CeilDiv {
     function ceildiv(uint x, uint y) internal pure returns (uint) {
@@ -15,8 +18,9 @@ library CeilDiv {
     }
 }
 
-contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
+contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, ReentrancyGuard {
     using CeilDiv for uint;
+    using SafeERC20 for IERC20;
 
     uint constant ONE = 10**18;
 
@@ -58,6 +62,8 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         uint _endTime
     ) external initializer {
         require(address(conditionalTokens) == address(0), "already initialized");
+        require(_treasuryPercent <= 10000, "treasury percent must be less than or equal to 10000");
+        require(_fee < ONE, "fee must be less than or equal to ONE");
         __ERC20_init(name, symbol); // initialize ERC20 properly
         conditionalTokens = _conditionalTokens;
         collateralToken = _collateralToken;
@@ -136,7 +142,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         }
     }
 
-    function addFunding(uint addedFunds, uint[] calldata distributionHint) external {
+    function addFunding(uint addedFunds, uint[] calldata distributionHint) external nonReentrant() {
         require(addedFunds > 0, "funding must be non-zero");
 
         uint[] memory sendBackAmounts = new uint[](positionIds.length);
@@ -176,8 +182,8 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
             mintAmount = addedFunds;
         }
 
-        require(collateralToken.transferFrom(msg.sender, address(this), addedFunds), "funding transfer failed");
-        require(collateralToken.approve(address(conditionalTokens), addedFunds), "approval for splits failed");
+        collateralToken.safeTransferFrom(msg.sender, address(this), addedFunds);
+        collateralToken.forceApprove(address(conditionalTokens), addedFunds);
         splitPositionThroughAllConditions(addedFunds);
 
         _mint(msg.sender, mintAmount);
@@ -192,7 +198,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         emit FPMMFundingAdded(msg.sender, sendBackAmounts, mintAmount);
     }
 
-    function removeFunding(uint sharesToBurn) external {
+    function removeFunding(uint sharesToBurn) external nonReentrant() {
         for(uint i = 0; i < conditionIds.length; i++) {
             require(conditionalTokens.payoutDenominator(conditionIds[i]) > 0, "cannot remove funding before condition is resolved");
         }
@@ -213,26 +219,26 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         emit FPMMFundingRemoved(msg.sender, sendAmounts, collateralRemovedFromFeePool, sharesToBurn);
     }
 
-    function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external {
+    function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external nonReentrant() {
         require(canTrade(), "trading not allowed");
         require((investmentAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
 
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
 
-        require(collateralToken.transferFrom(msg.sender, address(this), investmentAmount), "cost transfer failed");
+        collateralToken.safeTransferFrom(msg.sender, address(this), investmentAmount);
         uint feeAmount = (investmentAmount * fee) / ONE;
         feePoolWeight += feeAmount;
         uint investmentAmountMinusFees = investmentAmount - feeAmount;
 
-        require(collateralToken.approve(address(conditionalTokens), investmentAmountMinusFees), "approval for splits failed");
+        collateralToken.forceApprove(address(conditionalTokens), investmentAmountMinusFees);
         splitPositionThroughAllConditions(investmentAmountMinusFees);
 
         conditionalTokens.safeTransferFrom(address(this), msg.sender, positionIds[outcomeIndex], outcomeTokensToBuy, "");
         emit FPMMBuy(msg.sender, investmentAmount, feeAmount, outcomeIndex, outcomeTokensToBuy);
     }
 
-    function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external {
+    function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external nonReentrant() {
         require(canTrade(), "trading not allowed");
         require((returnAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
 
@@ -245,7 +251,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         uint returnAmountPlusFees = returnAmount + feeAmount;
 
         mergePositionsThroughAllConditions(returnAmountPlusFees);
-        require(collateralToken.transfer(msg.sender, returnAmount), "return transfer failed");
+        collateralToken.safeTransfer(msg.sender, returnAmount);
 
         emit FPMMSell(msg.sender, returnAmount, feeAmount, outcomeIndex, outcomeTokensToSell);
     }
@@ -278,10 +284,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
             totalWithdrawnFees += pendingAmount;
 
             uint256 treasuryAmount = pendingAmount * treasuryPercent / percentUL;
-            require(collateralToken.transfer(treasury, treasuryAmount), "treasury transfer failed");
+            collateralToken.safeTransfer(treasury, treasuryAmount);
 
             uint256 userAmount = pendingAmount - treasuryAmount;
-            require(collateralToken.transfer(account, userAmount), "user transfer failed");
+            collateralToken.safeTransfer(account, userAmount);
         }
     }
 

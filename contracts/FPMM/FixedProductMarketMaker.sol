@@ -63,6 +63,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
     ) external initializer {
         require(address(conditionalTokens) == address(0), "already initialized");
         require(_treasuryPercent <= 10000, "treasury percent must be less than or equal to 10000");
+        require(_fee < ONE, "fee must be less than or equal to ONE");
         __ERC20_init(name, symbol); // initialize ERC20 properly
         conditionalTokens = _conditionalTokens;
         collateralToken = _collateralToken;

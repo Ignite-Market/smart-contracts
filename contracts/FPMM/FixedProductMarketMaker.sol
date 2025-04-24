@@ -7,6 +7,8 @@ import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
 import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 
 library CeilDiv {
     function ceildiv(uint x, uint y) internal pure returns (uint) {
@@ -15,7 +17,7 @@ library CeilDiv {
     }
 }
 
-contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
+contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, ReentrancyGuard {
     using CeilDiv for uint;
 
     uint constant ONE = 10**18;
@@ -136,7 +138,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         }
     }
 
-    function addFunding(uint addedFunds, uint[] calldata distributionHint) external {
+    function addFunding(uint addedFunds, uint[] calldata distributionHint) external nonReentrant() {
         require(addedFunds > 0, "funding must be non-zero");
 
         uint[] memory sendBackAmounts = new uint[](positionIds.length);
@@ -192,7 +194,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         emit FPMMFundingAdded(msg.sender, sendBackAmounts, mintAmount);
     }
 
-    function removeFunding(uint sharesToBurn) external {
+    function removeFunding(uint sharesToBurn) external nonReentrant() {
         for(uint i = 0; i < conditionIds.length; i++) {
             require(conditionalTokens.payoutDenominator(conditionIds[i]) > 0, "cannot remove funding before condition is resolved");
         }
@@ -213,7 +215,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         emit FPMMFundingRemoved(msg.sender, sendAmounts, collateralRemovedFromFeePool, sharesToBurn);
     }
 
-    function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external {
+    function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external nonReentrant() {
         require(canTrade(), "trading not allowed");
         require((investmentAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
 
@@ -232,7 +234,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver {
         emit FPMMBuy(msg.sender, investmentAmount, feeAmount, outcomeIndex, outcomeTokensToBuy);
     }
 
-    function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external {
+    function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external nonReentrant() {
         require(canTrade(), "trading not allowed");
         require((returnAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
 

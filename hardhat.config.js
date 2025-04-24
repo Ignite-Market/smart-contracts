@@ -21,10 +21,11 @@ module.exports = {
         version: "0.8.26",
         settings: {
           evmVersion: `london`,
+          optimizer: {
+            enabled: true,
+            runs: 200
+          },
         },
-      },
-      {
-        version: "0.5.1",
       },
     ],
   },
@@ -53,6 +54,9 @@ module.exports = {
       gasPrice: "auto",
       explorer: "https://opcelestia-raspberry.gelatoscout.com/",
     },
+    hardhat: {
+      blockGasLimit: 15000000
+    }
   },
   etherscan: {
     apiKey: {
@@ -81,10 +85,11 @@ module.exports = {
         network: "coston2",
         chainId: 114,
         urls: {
-          apiURL: "https://api.routescan.io/v2/network/testnet/evm/114/etherscan",
-          browserURL: "https://coston2.testnet.flarescan.com"
-        }
-      }
+          apiURL:
+            "https://api.routescan.io/v2/network/testnet/evm/114/etherscan",
+          browserURL: "https://coston2.testnet.flarescan.com",
+        },
+      },
     ],
   },
   abiExporter: {

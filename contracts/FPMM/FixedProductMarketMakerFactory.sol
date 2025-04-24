@@ -1,14 +1,14 @@
-pragma solidity ^0.5.1;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
 
-import { IERC20 } from "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ConditionalTokens } from "./../ConditionalTokens/ConditionalTokens.sol";
 import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
 import { ConstructedCloneFactory } from "./ConstructedCloneFactory.sol";
-import { FixedProductMarketMaker, FixedProductMarketMakerData } from "./FixedProductMarketMaker.sol";
-import { ERC1155TokenReceiver } from "./../ConditionalTokens/ERC1155/ERC1155TokenReceiver.sol";
+import { FixedProductMarketMaker } from "./FixedProductMarketMaker.sol";
+import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 
-
-contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProductMarketMakerData {
+contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
     event FixedProductMarketMakerCreation(
         address indexed creator,
         FixedProductMarketMaker fixedProductMarketMaker,
@@ -24,112 +24,123 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory, FixedProduct
 
     FixedProductMarketMaker public implementationMaster;
 
-    constructor() public {
+    string public constant NAME = "FPMM Shares";
+    string public constant SYMBOL = "FPMM";
+
+    constructor() {
         implementationMaster = new FixedProductMarketMaker();
     }
 
     function cloneConstructor(bytes calldata consData) external {
         (
-            ConditionalTokens _conditionalTokens,
-            IERC20 _collateralToken,
-            bytes32[] memory _conditionIds,
-            uint _fee,
-            uint _treasuryPercent,
-            address _treasury,
-            uint _fundingThreshold,
-            uint _endTime
+            ConditionalTokens conditionalTokens_,
+            IERC20 collateralToken_,
+            bytes32[] memory conditionIds_,
+            uint fee_,
+            uint treasuryPercent_,
+            address treasury_,
+            uint fundingThreshold_,
+            uint endTime_
         ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint, uint, address, uint, uint));
 
-        _supportedInterfaces[_INTERFACE_ID_ERC165] = true;
-        _supportedInterfaces[
-            ERC1155TokenReceiver(0).onERC1155Received.selector ^
-            ERC1155TokenReceiver(0).onERC1155BatchReceived.selector
-        ] = true;
-
-        conditionalTokens = _conditionalTokens;
-        collateralToken = _collateralToken;
-        conditionIds = _conditionIds;
-        fee = _fee;
-        treasuryPercent = _treasuryPercent;
-        treasury = _treasury;
-        fundingThreshold = _fundingThreshold;
-        endTime = _endTime;
-
-        uint atomicOutcomeSlotCount = 1;
-        outcomeSlotCounts = new uint[](conditionIds.length);
-        for (uint i = 0; i < conditionIds.length; i++) {
-            uint outcomeSlotCount = conditionalTokens.getOutcomeSlotCount(conditionIds[i]);
-            atomicOutcomeSlotCount *= outcomeSlotCount;
-            outcomeSlotCounts[i] = outcomeSlotCount;
-        }
-        require(atomicOutcomeSlotCount > 1, "conditions must be valid");
-
-        collectionIds = new bytes32[][](conditionIds.length);
-        _recordCollectionIDsForAllConditions(conditionIds.length, bytes32(0));
-        require(positionIds.length == atomicOutcomeSlotCount, "position IDs construction failed!?");
-    }
-
-    function _recordCollectionIDsForAllConditions(uint conditionsLeft, bytes32 parentCollectionId) private {
-        if(conditionsLeft == 0) {
-            positionIds.push(CTHelpers.getPositionId(collateralToken, parentCollectionId));
-            return;
-        }
-
-        conditionsLeft--;
-
-        uint outcomeSlotCount = outcomeSlotCounts[conditionsLeft];
-
-        collectionIds[conditionsLeft].push(parentCollectionId);
-        for(uint i = 0; i < outcomeSlotCount; i++) {
-            _recordCollectionIDsForAllConditions(
-                conditionsLeft,
-                CTHelpers.getCollectionId(
-                    parentCollectionId,
-                    conditionIds[conditionsLeft],
-                    1 << i
-                )
-            );
-        }
+        FixedProductMarketMaker(address(this)).initialize(
+            NAME,
+            SYMBOL,
+            conditionalTokens_,
+            collateralToken_,
+            conditionIds_,
+            fee_,
+            treasuryPercent_,
+            treasury_,
+            fundingThreshold_,
+            endTime_
+        );
     }
 
     function createFixedProductMarketMaker(
-        ConditionalTokens conditionalTokens,
-        IERC20 collateralToken,
-        bytes32[] calldata conditionIds,
-        uint fee,
-        uint treasuryPercent,
-        address treasury,
-        uint fundingThreshold,
-        uint endTime
-    )
-        external
-        returns (FixedProductMarketMaker)
-    {
-        FixedProductMarketMaker fixedProductMarketMaker = FixedProductMarketMaker(
-            createClone(address(implementationMaster), abi.encode(
-                conditionalTokens,
-                collateralToken,
-                conditionIds,
-                fee,
-                treasuryPercent,
-                treasury,
-                fundingThreshold,
-                endTime
-            ))
-        );
-        emit FixedProductMarketMakerCreation(
-            msg.sender,
-            fixedProductMarketMaker,
-            conditionalTokens,
-            collateralToken,
-            conditionIds,
-            fee,
-            treasuryPercent,
-            treasury,
-            fundingThreshold,
-            endTime
+        ConditionalTokens conditionalTokens_,
+        IERC20 collateralToken_,
+        bytes32[] calldata conditionIds_,
+        uint fee_,
+        uint treasuryPercent_,
+        address treasury_,
+        uint fundingThreshold_,
+        uint endTime_,
+        bytes32 salt
+    ) external returns (FixedProductMarketMaker) {
+        bytes memory initData = _generateInitData(
+            conditionalTokens_,
+            collateralToken_,
+            conditionIds_,
+            fee_,
+            treasuryPercent_,
+            treasury_,
+            fundingThreshold_,
+            endTime_
         );
 
-        return fixedProductMarketMaker;
+        FixedProductMarketMaker fpm = FixedProductMarketMaker(
+            create2Clone(address(implementationMaster), initData, salt)
+        );
+
+        emit FixedProductMarketMakerCreation(
+            msg.sender,
+            fpm,
+            conditionalTokens_,
+            collateralToken_,
+            conditionIds_,
+            fee_,
+            treasuryPercent_,
+            treasury_,
+            fundingThreshold_,
+            endTime_
+        );
+
+        return fpm;
+    }
+
+    function predictFixedProductMarketMakerAddress(bytes32 salt)
+        external
+        view
+        returns (address predicted)
+    {
+        bytes20 targetBytes = bytes20(address(implementationMaster));
+        bytes32 codeHash = keccak256(abi.encodePacked(
+            hex"3d602d80600a3d3981f3363d3d373d3d3d363d73",
+            targetBytes,
+            hex"5af43d82803e903d91602b57fd5bf3"
+        ));
+
+        predicted = address(uint160(uint(keccak256(abi.encodePacked(
+            bytes1(0xff),
+            address(this),
+            salt,
+            codeHash
+        )))));
+    }
+
+    function _generateInitData(
+        ConditionalTokens conditionalTokens_,
+        IERC20 collateralToken_,
+        bytes32[] calldata conditionIds_,
+        uint fee_,
+        uint treasuryPercent_,
+        address treasury_,
+        uint fundingThreshold_,
+        uint endTime_
+    ) internal pure returns (bytes memory) {
+        return abi.encodeWithSelector(
+            FixedProductMarketMaker.initialize.selector,
+            NAME,
+            SYMBOL,
+            conditionalTokens_,
+            collateralToken_,
+            conditionIds_,
+            fee_,
+            treasuryPercent_,
+            treasury_,
+            fundingThreshold_,
+            endTime_
+        );
     }
 }

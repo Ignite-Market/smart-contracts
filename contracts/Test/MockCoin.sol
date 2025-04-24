@@ -1,24 +1,37 @@
-pragma solidity ^0.5.1;
-import { ERC20Mintable } from "openzeppelin-solidity/contracts/token/ERC20/ERC20Mintable.sol";
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
 
-contract MockCoin is ERC20Mintable {
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-    string public name = "Mock"; 
-    string public symbol = "MCK";
+contract MockCoin is ERC20, AccessControl {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
-    constructor() public {
+    constructor() ERC20("Mock", "MCK") {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+        _grantRole(PAUSER_ROLE, msg.sender);
         _mint(msg.sender, 100_000 * 10**6);
     }
 
-    function decimals() public view returns (uint8) {
+    function decimals() public pure override returns (uint8) {
         return 6;
     }
 
-    function faucetMint(address account, uint256 amount) external {
+    function mint(address account, uint256 amount) external onlyRole(MINTER_ROLE) {
+        _mint(account, amount);
+    }
+
+    function faucetMint(address account, uint256 amount) external onlyRole(MINTER_ROLE) {
         _mint(account, amount);
     }
 
     function deposit() external payable {
         _mint(msg.sender, msg.value);
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
     }
 }

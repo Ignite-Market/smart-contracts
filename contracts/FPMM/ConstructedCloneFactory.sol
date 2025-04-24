@@ -1,38 +1,46 @@
-pragma solidity >=0.4.24 ^0.5.1;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.26;
 
 contract ConstructedCloneFactory {
+    error CreateError();
 
-    event CloneCreated(address indexed target, address clone);
-    
-    function cloneConstructor(bytes calldata) external;
-
-    function createClone(address target, bytes memory consData) internal returns (address result) {
-        bytes memory consPayload = abi.encodeWithSignature("cloneConstructor(bytes)", consData);
-        bytes memory clone = new bytes(consPayload.length + 99);
-        
+    function _create2Clone(address target, bytes32 salt) internal returns (address result) {
+        bytes20 targetBytes = bytes20(target);
         assembly {
-            mstore(add(clone, 0x20),
-                0x3d3d606380380380913d393d73bebebebebebebebebebebebebebebebebebebe)
-            mstore(add(clone, 0x2d),
-                mul(address, 0x01000000000000000000000000))
-            mstore(add(clone, 0x41),
-                0x5af4602a57600080fd5b602d8060366000396000f3363d3d373d3d3d363d73be)
-            mstore(add(clone, 0x60),
-                mul(target, 0x01000000000000000000000000))
-            mstore(add(clone, 116),
-                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
+            let clone := mload(0x40)
+            mstore(clone, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
+            mstore(add(clone, 0x14), targetBytes)
+            mstore(add(clone, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
+            result := create2(0, clone, 0x37, salt)
         }
-        
-        for(uint i = 0; i < consPayload.length; i++) {
-            clone[99 + i] = consPayload[i];
+        if (result == address(0)) {
+            revert CreateError();
         }
+    }
 
+    function _clone(address target) internal returns (address result) {
+        bytes20 targetBytes = bytes20(target);
         assembly {
-          let len := mload(clone)
-          let data := add(clone, 0x20)
-          result := create(0, data, len)
+            let clone := mload(0x40)
+            mstore(clone, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
+            mstore(add(clone, 0x14), targetBytes)
+            mstore(add(clone, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
+            result := create(0, clone, 0x37)
         }
-        
-        require(result != address(0));
+        if (result == address(0)) {
+            revert CreateError();
+        }
+    }
+
+    function createClone(address target, bytes memory constructorData) internal returns (address instance) {
+        instance = _clone(target);
+        (bool ok, ) = instance.call(constructorData);
+        if (!ok) revert CreateError();
+    }
+
+   function create2Clone(address target, bytes memory constructorData, bytes32 salt) internal returns (address instance) {
+        instance = _create2Clone(target, salt);
+        (bool ok, ) = instance.call(constructorData);
+        if (!ok) revert CreateError();
     }
 }

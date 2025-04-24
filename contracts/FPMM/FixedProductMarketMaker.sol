@@ -2,6 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ConditionalTokens } from "./../ConditionalTokens/ConditionalTokens.sol";
 import { CTHelpers } from "./../ConditionalTokens/CTHelpers.sol";
 import { IERC1155Receiver } from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
@@ -19,6 +20,7 @@ library CeilDiv {
 
 contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, ReentrancyGuard {
     using CeilDiv for uint;
+    using SafeERC20 for IERC20;
 
     uint constant ONE = 10**18;
 
@@ -60,6 +62,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         uint _endTime
     ) external initializer {
         require(address(conditionalTokens) == address(0), "already initialized");
+        require(_treasuryPercent <= 10000, "treasury percent must be less than or equal to 10000");
         __ERC20_init(name, symbol); // initialize ERC20 properly
         conditionalTokens = _conditionalTokens;
         collateralToken = _collateralToken;
@@ -178,8 +181,8 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
             mintAmount = addedFunds;
         }
 
-        require(collateralToken.transferFrom(msg.sender, address(this), addedFunds), "funding transfer failed");
-        require(collateralToken.approve(address(conditionalTokens), addedFunds), "approval for splits failed");
+        collateralToken.safeTransferFrom(msg.sender, address(this), addedFunds);
+        collateralToken.forceApprove(address(conditionalTokens), addedFunds);
         splitPositionThroughAllConditions(addedFunds);
 
         _mint(msg.sender, mintAmount);
@@ -222,12 +225,12 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
 
-        require(collateralToken.transferFrom(msg.sender, address(this), investmentAmount), "cost transfer failed");
+        collateralToken.safeTransferFrom(msg.sender, address(this), investmentAmount);
         uint feeAmount = (investmentAmount * fee) / ONE;
         feePoolWeight += feeAmount;
         uint investmentAmountMinusFees = investmentAmount - feeAmount;
 
-        require(collateralToken.approve(address(conditionalTokens), investmentAmountMinusFees), "approval for splits failed");
+        collateralToken.forceApprove(address(conditionalTokens), investmentAmountMinusFees);
         splitPositionThroughAllConditions(investmentAmountMinusFees);
 
         conditionalTokens.safeTransferFrom(address(this), msg.sender, positionIds[outcomeIndex], outcomeTokensToBuy, "");
@@ -247,7 +250,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         uint returnAmountPlusFees = returnAmount + feeAmount;
 
         mergePositionsThroughAllConditions(returnAmountPlusFees);
-        require(collateralToken.transfer(msg.sender, returnAmount), "return transfer failed");
+        collateralToken.safeTransfer(msg.sender, returnAmount);
 
         emit FPMMSell(msg.sender, returnAmount, feeAmount, outcomeIndex, outcomeTokensToSell);
     }
@@ -280,10 +283,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
             totalWithdrawnFees += pendingAmount;
 
             uint256 treasuryAmount = pendingAmount * treasuryPercent / percentUL;
-            require(collateralToken.transfer(treasury, treasuryAmount), "treasury transfer failed");
+            collateralToken.safeTransfer(treasury, treasuryAmount);
 
             uint256 userAmount = pendingAmount - treasuryAmount;
-            require(collateralToken.transfer(account, userAmount), "user transfer failed");
+            collateralToken.safeTransfer(account, userAmount);
         }
     }
 

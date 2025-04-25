@@ -19,8 +19,8 @@ describe('FixedProductMarketMakerAmounts', function() {
     let fixedProductMarketMakerFactory;
     let positionIds;
     let fixedProductMarketMaker;
-    const feeFactor = ethers.utils.parseEther("0.01"); // 1%
-    const treasuryPercent = 100; // 1%
+    const feeFactor = ethers.utils.parseEther("0.015"); // 1.5%
+    const treasuryPercent = 1000; // 10%
     const fundingThreshold = ethers.utils.parseUnits("100", 6); // 100 USDC
     let marketMakerPool;
     const winningIndex = 0; // Always the same winning index
@@ -159,6 +159,12 @@ describe('FixedProductMarketMakerAmounts', function() {
         
         // Should get back the initial funding amount
         expect(await collateralToken.balanceOf(investor1.address)).to.equal(addedFunds1);
+
+        // Log fee pool information
+        const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
+        console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 
     it('add + trade + remove funding with multiple trades trades', async function() {
@@ -352,6 +358,8 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Log fee pool information
         const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
         console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 
     it('add + trade + remove funding with 70% outcome winning', async function() {
@@ -526,6 +534,8 @@ describe('FixedProductMarketMakerAmounts', function() {
         
         const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
         console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 
     it('add + trade + remove funding with 30% outcome winning', async function() {
@@ -701,5 +711,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         
         const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
         console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 });

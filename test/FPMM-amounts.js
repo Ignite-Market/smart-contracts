@@ -19,7 +19,7 @@ describe('FixedProductMarketMakerAmounts', function() {
     let fixedProductMarketMakerFactory;
     let positionIds;
     let fixedProductMarketMaker;
-    const feeFactor = ethers.utils.parseEther("0.015"); // 1.5%
+    const feeFactor = ethers.utils.parseEther("0.02"); // 2%
     const treasuryPercent = 1000; // 10%
     const fundingThreshold = ethers.utils.parseUnits("100", 6); // 100 USDC
     let marketMakerPool;

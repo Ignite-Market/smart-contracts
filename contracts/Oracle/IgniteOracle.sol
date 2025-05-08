@@ -3,16 +3,17 @@
 pragma solidity ^0.8.26;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IJsonApi} from "./interfaces/IJsonApi.sol";
-import {IJsonApiVerification} from "./interfaces/IJsonApiVerification.sol";
+import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
+import {IWeb2Json} from "@flarenetwork/flare-periphery-contracts/coston2/IWeb2Json.sol";
+import {IFdcVerification} from "@flarenetwork/flare-periphery-contracts/coston2/IFdcVerification.sol";
+
 
 interface IConditionalTokens {
     function prepareCondition(address oracle, bytes32 questionId, uint256 outcomeSlotCount) external;
     function reportPayouts(bytes32 questionId, uint[] calldata payouts) external;
 }
 
-contract IgniteOracle is AccessControl {
-
+contract IgniteOracleCoston is AccessControl {
     /**
     * @dev Emitted when a resolution vote is cast. 
     * @param voter Voter's address.
@@ -28,7 +29,6 @@ contract IgniteOracle is AccessControl {
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
 
     IConditionalTokens public immutable conditionalTokens;
-    IJsonApiVerification public immutable verification;
 
     enum Status {
         INVALID,
@@ -63,14 +63,10 @@ contract IgniteOracle is AccessControl {
     constructor(
         address _admin,
         address _conditionalTokens,
-        address _verification,
         uint256 _minVotes
     ) {
         require(_conditionalTokens != address(0), "NA not allowed");
         conditionalTokens = IConditionalTokens(_conditionalTokens);
-
-        require(_verification != address(0), "NA not allowed");
-        verification = IJsonApiVerification(_verification);
 
         require(_minVotes >= 3, "Min votes < 3");
         minVotes = _minVotes;
@@ -81,6 +77,7 @@ contract IgniteOracle is AccessControl {
 
     /**
      * @dev Initializes question.
+     * 
      * @param questionId Question ID.
      * @param outcomeSlotCount Number of question outcomes.
      * @param urlAr Array of API sources URLs.
@@ -150,13 +147,14 @@ contract IgniteOracle is AccessControl {
 
     /**
      * @dev Finalizes question.
+     * 
      * @param questionId Question ID.
      * @param proofs Proofs array.
      * @param finalize finalize should be false only if we hit a gas limit.
      */
     function finalizeQuestion(
         bytes32 questionId, 
-        IJsonApi.Proof[] calldata proofs,
+        IWeb2Json.Proof[] calldata proofs,
         bool finalize
     ) external {
         Question storage qData = question[questionId];
@@ -170,15 +168,18 @@ contract IgniteOracle is AccessControl {
             return;
         }
 
+        // Get FDC verification contract.
+        IFdcVerification fdcVerification = ContractRegistry.getFdcVerification();
+
         // Process each API result proof.
         bytes32 jqKey;
 
         for (uint256 i = 0; i < proofs.length; i++) {
-            IJsonApi.Proof memory proof = proofs[i];
+            IWeb2Json.Proof memory proof = proofs[i];
 
             // Check if proof matches with questionId.
             jqKey = keccak256(
-                abi.encodePacked(proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
+                abi.encodePacked(proof.data.requestBody.url, proof.data.requestBody.postProcessJq)
             );
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 
@@ -188,12 +189,12 @@ contract IgniteOracle is AccessControl {
 
             // Check if proof actually is valid.
             require(
-                verification.verifyJsonApi(proof),
+                fdcVerification.verifyJsonApi(proof),
                 "Invalid proof (provided)"
             );
 
             // Decode result.
-            uint256 outcomeIdx = abi.decode(proof.data.responseBody.abi_encoded_data, (uint256));
+            uint256 outcomeIdx = abi.decode(proof.data.responseBody.abiEncodedData, (uint256));
 
             qData.apiResolution[outcomeIdx] += 1;
         }

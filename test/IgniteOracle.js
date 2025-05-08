@@ -1,10 +1,9 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { createProofList } = require('./helpers/utils');
-const { toUtf8CodePoints } = require("ethers/lib/utils");
 
-describe("IgniteOracle", function () {
-    let owner, ORACLE, CONDITIONAL_TOKENS, VERIFICATION, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
+describe("IgniteOracleCoston", function () {
+    let owner, ORACLE, CONDITIONAL_TOKENS, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
 
     let curDate = Math.ceil(new Date().getTime() / 1000);
 
@@ -22,19 +21,14 @@ describe("IgniteOracle", function () {
     beforeEach(async () => {
         [owner, voter1, voter2, voter3, noRoleVoter] = await ethers.getSigners();
 
-        const conditionalTokensF = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
+        const conditionalTokensF = await ethers.getContractFactory("ConditionalTokens");
         CONDITIONAL_TOKENS = await conditionalTokensF.deploy();
         await CONDITIONAL_TOKENS.deployed();
 
-        const verificationF = await ethers.getContractFactory("DummyVerification");
-        VERIFICATION = await verificationF.deploy();
-        await VERIFICATION.deployed();
-
-        const oracleF = await ethers.getContractFactory("IgniteOracle");
+        const oracleF = await ethers.getContractFactory("IgniteOracleCoston");
         ORACLE = await oracleF.deploy(
             owner.address, // admin
             CONDITIONAL_TOKENS.address, // conditionalTokens
-            VERIFICATION.address, // verification
             3, // minVotes
         );
         await ORACLE.deployed();

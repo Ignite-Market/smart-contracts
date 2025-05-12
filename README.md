@@ -49,8 +49,12 @@ Run `npx hardhat run --network coston2 ./scripts/deploy-conditional-tokens.js`.
 
 Run `npx hardhat run --network coston2 ./scripts/deploy-fpmm-factory.js`.
 
-Before deploying ignite oracle, you need to set the following parameters (in `deploy-oracle.js`):
+Before deploying ignite oracle, you need to set the following parameters (in `deploy-oracle-*.js`):
 
 - conditionalTokens address
 
-Run `npx hardhat run --network coston2 ./scripts/deploy-oracle.js`.
+### Coston testnet deployment:
+
+Run `npx hardhat run --network coston2 ./scripts/deploy-oracle-coston.js`.
+
+Verify contract `npx hardhat verify --network coston2 CONTRACT_ADDRESS ARG1 ARG2 ....`

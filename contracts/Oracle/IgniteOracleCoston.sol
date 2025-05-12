@@ -37,6 +37,10 @@ contract IgniteOracleCoston is AccessControl {
         FINALIZED
     }
 
+    struct OutcomeResponseData {
+        uint256 outcomeIdx;
+    }
+
     struct Question {
         Status status;
         bool automatic; // If question resolution is automatic through API sources.
@@ -194,9 +198,8 @@ contract IgniteOracleCoston is AccessControl {
             );
 
             // Decode result.
-            uint256 outcomeIdx = abi.decode(proof.data.responseBody.abiEncodedData, (uint256));
-
-            qData.apiResolution[outcomeIdx] += 1;
+            OutcomeResponseData memory outcome = abi.decode(proof.data.responseBody.abiEncodedData, (OutcomeResponseData));
+            qData.apiResolution[outcome.outcomeIdx] += 1;
         }
 
         if (finalize) {

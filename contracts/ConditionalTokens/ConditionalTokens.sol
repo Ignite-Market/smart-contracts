@@ -3,11 +3,12 @@ pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "./CTHelpers.sol";
 
-contract ConditionalTokens is ERC1155 {
+contract ConditionalTokens is ERC1155, Ownable {
 
-    constructor() ERC1155("") {}
+    constructor() ERC1155("") Ownable(msg.sender) {}
 
     /// @dev Emitted upon the successful preparation of a condition.
     /// @param conditionId The condition's ID. This ID may be derived from the other three parameters via ``keccak256(abi.encodePacked(oracle, questionId, outcomeSlotCount))``.
@@ -61,11 +62,19 @@ contract ConditionalTokens is ERC1155 {
     /// Denominator is also used for checking if the condition has been resolved.
     mapping(bytes32 => uint) public payoutDenominator;
 
+    /// Mapping key is an oracle address. Value represents if the oracle is allowed to prepare conditions.
+    mapping(address => bool) public oracles;
+
+    modifier onlyOracle() {
+        require(oracles[msg.sender], "not an oracle");
+        _;
+    }
+
     /// @dev This function prepares a condition by initializing a payout vector associated with the condition.
     /// @param oracle The account assigned to report the result for the prepared condition.
     /// @param questionId An identifier for the question to be answered by the oracle.
     /// @param outcomeSlotCount The number of outcome slots which should be used for this condition. Must not exceed 256.
-    function prepareCondition(address oracle, bytes32 questionId, uint outcomeSlotCount) external {
+    function prepareCondition(address oracle, bytes32 questionId, uint outcomeSlotCount) external onlyOracle {
         require(outcomeSlotCount <= 256, "too many outcome slots");
         require(outcomeSlotCount > 1, "there should be more than one outcome slot");
         bytes32 conditionId = CTHelpers.getConditionId(oracle, questionId, outcomeSlotCount);
@@ -280,5 +289,9 @@ contract ConditionalTokens is ERC1155 {
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC1155) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    function setOracle(address oracle, bool allowed) external onlyOwner {
+        oracles[oracle] = allowed;
     }
 }

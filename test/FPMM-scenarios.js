@@ -128,7 +128,7 @@ describe('FixedProductMarketMakerScenarios', function() {
 
     // Helper function to setup market
     const setupMarket = async (funding, initialDistribution, feeFactor) => {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const salt = ethers.utils.keccak256(
             ethers.utils.defaultAbiCoder.encode(
@@ -203,6 +203,8 @@ describe('FixedProductMarketMakerScenarios', function() {
         conditionalTokens = await ConditionalTokens.deploy();
         collateralToken = await WETH9.deploy();
         fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
+
+        await conditionalTokens.setOracle(oracle.address, true);
 
         positionIds = collectionIds.map(collectionId => 
             getPositionId(collateralToken.address, collectionId)
@@ -619,7 +621,7 @@ describe('FixedProductMarketMakerScenarios', function() {
     });
 
     // Test scenarios for high volume with different funding configurations
-    describe.only('High Volume Scenarios', function() {
+    describe('High Volume Scenarios', function() {
         // Increase timeout for high volume scenarios
         this.timeout(240000); // 4 minutes timeout
 

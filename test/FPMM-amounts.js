@@ -46,7 +46,9 @@ describe('FixedProductMarketMakerAmounts', function() {
         const WETH9 = await ethers.getContractFactory("MockCoin");
         const FixedProductMarketMakerFactory = await ethers.getContractFactory("FixedProductMarketMakerFactory");
 
+
         conditionalTokens = await ConditionalTokens.deploy();
+        await conditionalTokens.setOracle(oracle.address, true);
         collateralToken = await WETH9.deploy();
         fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
 
@@ -58,7 +60,7 @@ describe('FixedProductMarketMakerAmounts', function() {
     });
 
     it('add + remove funding with no trades', async function() {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,
@@ -168,7 +170,7 @@ describe('FixedProductMarketMakerAmounts', function() {
     });
 
     it('add + trade + remove funding with multiple trades trades', async function() {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,
@@ -363,7 +365,7 @@ describe('FixedProductMarketMakerAmounts', function() {
     });
 
     it('add + trade + remove funding with 70% outcome winning', async function() {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,
@@ -540,7 +542,7 @@ describe('FixedProductMarketMakerAmounts', function() {
 
     it('add + trade + remove funding with 30% outcome winning', async function() {
         // This test is identical to the previous one, just with different resolution
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,

@@ -33,7 +33,9 @@ describe("FPMM Full Lifecycle", function () {
 
     positionIds = collectionIds.map(cid => getPositionId(collateralToken.address, cid));
 
-    await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+    await conditionalTokens.setOracle(oracle.address, true);
+
+    await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
     const salt = ethers.utils.hexlify(ethers.utils.randomBytes(32));
 

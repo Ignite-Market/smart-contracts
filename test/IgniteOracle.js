@@ -39,6 +39,8 @@ describe("IgniteOracle", function () {
         );
         await ORACLE.deployed();
 
+        await CONDITIONAL_TOKENS.setOracle(ORACLE.address, true);
+
         VOTER_ROLE = await ORACLE.VOTER_ROLE();
 
         await ORACLE.grantRole(VOTER_ROLE, voter1.address);

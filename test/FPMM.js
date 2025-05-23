@@ -40,6 +40,7 @@ describe('FixedProductMarketMaker', function() {
         const FixedProductMarketMakerFactory = await ethers.getContractFactory("FixedProductMarketMakerFactory");
 
         conditionalTokens = await ConditionalTokens.deploy();
+        await conditionalTokens.setOracle(oracle.address, true);
         collateralToken = await WETH9.deploy();
         fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
 
@@ -49,7 +50,7 @@ describe('FixedProductMarketMaker', function() {
     });
 
     it('can be created by factory', async function () {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
     
         const createArgs = [
             conditionalTokens.address,

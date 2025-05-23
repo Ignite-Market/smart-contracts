@@ -301,4 +301,23 @@ contract IgniteOracle is AccessControl {
         }
         _revokeRole(role, account);
     }
+
+    /**
+     * Override renounce role, to keep track of total number of voters
+     * 
+     * @dev Renounces a role from an account.
+     * @param role Role.
+     * @param callerConfirmation callerConfirmation.
+     */
+    function renounceRole(bytes32 role, address callerConfirmation) public override {
+        if (callerConfirmation != _msgSender()) {
+            revert AccessControlBadConfirmation();
+        }
+
+        if(role == VOTER_ROLE && hasRole(VOTER_ROLE, callerConfirmation)) {
+            noOfVoters -= 1;
+        }
+
+        _revokeRole(role, callerConfirmation);
+    }
 }

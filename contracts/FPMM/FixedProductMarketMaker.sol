@@ -10,7 +10,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-
 library CeilDiv {
     function ceildiv(uint x, uint y) internal pure returns (uint) {
         if(x > 0) return ((x - 1) / y) + 1;
@@ -51,6 +50,15 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
     event FPMMFundingRemoved(address indexed funder, uint[] amountsRemoved, uint collateralRemovedFromFeePool, uint sharesBurnt);
     event FPMMBuy(address indexed buyer, uint investmentAmount, uint feeAmount, uint indexed outcomeIndex, uint outcomeTokensBought);
     event FPMMSell(address indexed seller, uint returnAmount, uint feeAmount, uint indexed outcomeIndex, uint outcomeTokensSold);
+
+    struct SetupFrame {
+        uint remainingConditions;
+        bytes32 parentCollectionId;
+    }
+
+    SetupFrame[] private setupStack;
+    bool public isSetupStarted;
+    uint public setupStepsProcessed;
 
     modifier onlyWhenSetupComplete() {
         require(isSetupComplete, "Setup not complete");
@@ -100,12 +108,80 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
 
     function finalizeSetup() external onlyCreator {
         require(!isSetupComplete, "Already finalized");
+        require(!isSetupStarted, "Setup already started");
         require(conditionIds.length > 0, "No conditions added");
 
         collectionIds = new bytes32[][](conditionIds.length);
-        _recordCollectionIDsForAllConditions(conditionIds.length, bytes32(0));
 
-        isSetupComplete = true;
+        // Start setup
+        isSetupStarted = true;
+
+        // Push initial frame
+        setupStack.push(SetupFrame({
+            remainingConditions: conditionIds.length,
+            parentCollectionId: bytes32(0)
+        }));
+
+        // Run first batch of steps
+        _processSetupSteps(40);
+    }
+
+    function stepFinalizeSetup(uint steps) external onlyCreator {
+        require(isSetupStarted, "Setup not started");
+        require(!isSetupComplete, "Setup already finalized");
+
+        _processSetupSteps(steps);
+    }
+
+    function _processSetupSteps(uint maxSteps) internal {
+        uint steps = 0;
+
+        while (setupStack.length > 0 && steps < maxSteps) {
+            SetupFrame memory frame = setupStack[setupStack.length - 1];
+            setupStack.pop();
+
+            if (frame.remainingConditions == 0) {
+                uint positionId = CTHelpers.getPositionId(collateralToken, frame.parentCollectionId);
+                positionIds.push(positionId);
+            } else {
+                uint idx = frame.remainingConditions - 1;
+                uint outcomeSlotCount = outcomeSlotCounts[idx];
+
+                // Only add the parent collection ID if it's not already in the array
+                bool exists = false;
+                for (uint j = 0; j < collectionIds[idx].length; j++) {
+                    if (collectionIds[idx][j] == frame.parentCollectionId) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    collectionIds[idx].push(frame.parentCollectionId);
+                }
+
+                for (uint i = 0; i < outcomeSlotCount; i++) {
+                    bytes32 newCollectionId = CTHelpers.getCollectionId(
+                        frame.parentCollectionId,
+                        conditionIds[idx],
+                        1 << i
+                    );
+
+                    setupStack.push(SetupFrame({
+                        remainingConditions: idx,
+                        parentCollectionId: newCollectionId
+                    }));
+                }
+            }
+
+            steps++;
+        }
+
+        setupStepsProcessed += steps;
+
+        if (setupStack.length == 0) {
+            isSetupComplete = true;
+            isSetupStarted = false;
+        }
     }
 
     function _recordCollectionIDsForAllConditions(uint conditionsLeft, bytes32 parentCollectionId) internal {

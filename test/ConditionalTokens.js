@@ -15,7 +15,7 @@ const Scenarios = Object.freeze({
   FORWARDER: Symbol("FORWARDER"),
 });
 
-describe.only("ConditionalTokens", function() {
+describe("ConditionalTokens", function() {
   let ConditionalTokens, ERC20Mintable, Forwarder;
   let conditionalTokens, collateralToken, forwarder;
   let minter, oracle, notOracle, eoaTrader, fwdExecutor, counterparty;

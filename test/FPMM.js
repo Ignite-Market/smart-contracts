@@ -7,7 +7,7 @@ const {
 } = require('./helpers/id-helpers.js');
 const { randomHex } = require('./helpers/utils.js');
 
-describe('FixedProductMarketMaker', function() {
+describe.only('FixedProductMarketMaker', function() {
     let creator, oracle, investor1, trader, investor2, treasury;
     const questionId = randomHex(32);
     const numOutcomes = 3; // 64 originally from gnosis tests
@@ -55,7 +55,6 @@ describe('FixedProductMarketMaker', function() {
         const createArgs = [
             conditionalTokens.address,
             collateralToken.address,
-            [conditionId],
             feeFactor,
             treasuryPercent,
             treasury.address,
@@ -72,7 +71,6 @@ describe('FixedProductMarketMaker', function() {
                 "string",       // symbol
                 "address",      // conditionalTokens
                 "address",      // collateralToken
-                "bytes32[]",    // conditionIds
                 "uint256",      // fee
                 "uint256",      // treasuryPercent
                 "address",      // treasury
@@ -85,7 +83,6 @@ describe('FixedProductMarketMaker', function() {
                 "FPMM",
                 conditionalTokens.address,
                 collateralToken.address,
-                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -102,7 +99,6 @@ describe('FixedProductMarketMaker', function() {
         .createFixedProductMarketMaker(
             conditionalTokens.address,
             collateralToken.address,
-            [conditionId],
             feeFactor,
             treasuryPercent,
             treasury.address,
@@ -123,7 +119,19 @@ describe('FixedProductMarketMaker', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await expect(
+            fixedProductMarketMaker.connect(trader).batchAddConditions([conditionId])
+        ).to.be.revertedWith('not creator');
+
+        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
+        await fixedProductMarketMaker.connect(creator).finalizeSetup();
+
+        await expect(
+            fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId])
+        ).to.be.revertedWith("Already finalized");
     });
+
 
     it('cannot trade before being funded', async function() {
         expect(await fixedProductMarketMaker.canTrade()).to.equal(false);
@@ -345,6 +353,93 @@ describe('FixedProductMarketMaker', function() {
         }
 
         // await conditionalTokens.me
+    });
+
+    it.only('can create a market with 5 conditions and 5 outcomes each', async function() {
+        const numConditions = 5;
+        const numOutcomes = 2;
+
+        const questionIds = Array.from({ length: numConditions }, (_, i) => randomHex(32));
+
+        const conditionIds = Array.from({ length: numConditions }, (_, i) => getConditionId(oracle.address, questionIds[i], numOutcomes));
+        // const collectionIds = Array.from({ length: numConditions }, (_, i) => getCollectionId(conditionIds[i], BigInt(1) << BigInt(i)));
+
+        for(let i = 0; i < numConditions; i++) {
+            await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionIds[i], numOutcomes);
+        }
+
+        const createArgs = [
+            conditionalTokens.address,
+            collateralToken.address,
+            feeFactor,
+            treasuryPercent,
+            treasury.address,
+            fundingThreshold,
+            endTime
+        ];
+
+        const salt = ethers.utils.keccak256(
+            ethers.utils.defaultAbiCoder.encode(
+                [
+                    "address",      // creator
+                    "string",       // name
+                    "string",       // symbol
+                    "address",      // conditionalTokens
+                    "address",      // collateralToken
+                    "uint256",      // fee
+                    "uint256",      // treasuryPercent
+                    "address",      // treasury
+                    "uint256",      // fundingThreshold
+                    "uint256"       // endTime
+                ],
+                [
+                    creator.address,
+                    "FPMM Shares",
+                    "FPMM",
+                    conditionalTokens.address,
+                    collateralToken.address,
+                    feeFactor,
+                    treasuryPercent,
+                    treasury.address,
+                    fundingThreshold,
+                    endTime
+                ]
+            )
+        );  
+
+        const predictedAddress = await fixedProductMarketMakerFactory
+            .predictFixedProductMarketMakerAddress(salt);
+
+        const createTx = await fixedProductMarketMakerFactory.connect(creator)
+            .createFixedProductMarketMaker(
+                conditionalTokens.address,
+                collateralToken.address,
+                feeFactor,
+                treasuryPercent,
+                treasury.address,
+                fundingThreshold,
+                endTime,
+                salt
+            );
+
+        await expect(createTx)
+            .to.emit(fixedProductMarketMakerFactory, 'FixedProductMarketMakerCreation')
+            .withArgs(
+                creator.address,
+                predictedAddress,
+                ...createArgs
+            );
+
+        fixedProductMarketMaker = await ethers.getContractAt(
+            "FixedProductMarketMaker",
+            predictedAddress
+        );
+
+        console.log("here1");
+        await fixedProductMarketMaker.connect(creator).batchAddConditions(conditionIds);
+        console.log("here2");
+        const res = await fixedProductMarketMaker.connect(creator).finalizeSetup();
+        console.log("res", res);
     });
     
 });

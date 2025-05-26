@@ -112,7 +112,6 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
-                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -125,6 +124,9 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
+        await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding
         const addedFunds1 = ethers.utils.parseUnits("100", 6);
@@ -222,7 +224,6 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
-                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -235,6 +236,9 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
+        await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding
         const addedFunds1 = ethers.utils.parseUnits("1000", 6); // 1,000 USDC initial funding
@@ -417,7 +421,6 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
-                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -430,6 +433,9 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
+        await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding with 50/50 split
         const addedFunds1 = ethers.utils.parseUnits("1000", 6);
@@ -594,7 +600,6 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
-                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -607,6 +612,9 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
+        await fixedProductMarketMaker.connect(creator).finalizeSetup(); 
 
         // Add funding with 50/50 split
         const addedFunds1 = ethers.utils.parseUnits("1000", 6);

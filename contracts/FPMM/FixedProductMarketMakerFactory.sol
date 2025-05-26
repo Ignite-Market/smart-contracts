@@ -14,7 +14,6 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
         FixedProductMarketMaker fixedProductMarketMaker,
         ConditionalTokens indexed conditionalTokens,
         IERC20 indexed collateralToken,
-        bytes32[] conditionIds,
         uint fee,
         uint treasuryPercent,
         address treasury,
@@ -35,32 +34,30 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
         (
             ConditionalTokens conditionalTokens_,
             IERC20 collateralToken_,
-            bytes32[] memory conditionIds_,
             uint fee_,
             uint treasuryPercent_,
             address treasury_,
             uint fundingThreshold_,
             uint endTime_
-        ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint, uint, address, uint, uint));
+        ) = abi.decode(consData, (ConditionalTokens, IERC20, uint, uint, address, uint, uint));
 
-        FixedProductMarketMaker(address(this)).initialize(
+        FixedProductMarketMaker(address(this)).initializeBase(
             NAME,
             SYMBOL,
             conditionalTokens_,
             collateralToken_,
-            conditionIds_,
             fee_,
             treasuryPercent_,
             treasury_,
             fundingThreshold_,
-            endTime_
+            endTime_,
+            msg.sender
         );
     }
 
     function createFixedProductMarketMaker(
         ConditionalTokens conditionalTokens_,
         IERC20 collateralToken_,
-        bytes32[] calldata conditionIds_,
         uint fee_,
         uint treasuryPercent_,
         address treasury_,
@@ -71,12 +68,12 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
         bytes memory initData = _generateInitData(
             conditionalTokens_,
             collateralToken_,
-            conditionIds_,
             fee_,
             treasuryPercent_,
             treasury_,
             fundingThreshold_,
-            endTime_
+            endTime_,
+            msg.sender
         );
 
         FixedProductMarketMaker fpm = FixedProductMarketMaker(
@@ -88,7 +85,6 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
             fpm,
             conditionalTokens_,
             collateralToken_,
-            conditionIds_,
             fee_,
             treasuryPercent_,
             treasury_,
@@ -122,25 +118,25 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
     function _generateInitData(
         ConditionalTokens conditionalTokens_,
         IERC20 collateralToken_,
-        bytes32[] calldata conditionIds_,
         uint fee_,
         uint treasuryPercent_,
         address treasury_,
         uint fundingThreshold_,
-        uint endTime_
+        uint endTime_,
+        address creator_
     ) internal pure returns (bytes memory) {
         return abi.encodeWithSelector(
-            FixedProductMarketMaker.initialize.selector,
+            FixedProductMarketMaker.initializeBase.selector,
             NAME,
             SYMBOL,
             conditionalTokens_,
             collateralToken_,
-            conditionIds_,
             fee_,
             treasuryPercent_,
             treasury_,
             fundingThreshold_,
-            endTime_
+            endTime_,
+            creator_
         );
     }
 }

@@ -41,6 +41,18 @@ Run `npm run flatten`.
 
 > Note: Verify contract on coston2 scan using website verify feature & flatened contract from this repo
 
+Verify on flarescan:
+
+```
+npx hardhat verify --network coston2 contractAddress arguments
+```
+
+Verify on flare network:
+
+```
+npx hardhat verify --network flareTestnetCoston2 contractAddress arguments
+```
+
 ## Deployment
 
 > Smart contract deployment instructions.

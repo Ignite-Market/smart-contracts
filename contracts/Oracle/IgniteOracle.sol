@@ -140,7 +140,7 @@ contract IgniteOracle is AccessControl {
 
             for (uint256 i = 0; i < urlAr.length; i++) {
                 jqKey = keccak256(
-                    abi.encodePacked(questionId, urlAr[i], postprocessJqAr[i])
+                    abi.encode(questionId, urlAr[i], postprocessJqAr[i])
                 );
 
                 require(jqToQuestionId[jqKey] == bytes32(0), "jqKey duplicate"); 
@@ -179,7 +179,7 @@ contract IgniteOracle is AccessControl {
 
             // Check if proof matches with questionId.
             jqKey = keccak256(
-                abi.encodePacked(questionId, proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
+                abi.encode(questionId, proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
             );
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 

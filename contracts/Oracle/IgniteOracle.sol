@@ -128,6 +128,7 @@ contract IgniteOracle is AccessControl {
             resolutionTime: resolutionTime,
             apiResolution: new uint256[](outcomeSlotCount),
             winnerIdx: type(uint256).max
+            
         });
 
         // Prepare condition on Conditional Tokens contract.
@@ -139,7 +140,7 @@ contract IgniteOracle is AccessControl {
 
             for (uint256 i = 0; i < urlAr.length; i++) {
                 jqKey = keccak256(
-                    abi.encodePacked(urlAr[i], postprocessJqAr[i])
+                    abi.encodePacked(questionId, urlAr[i], postprocessJqAr[i])
                 );
 
                 require(jqToQuestionId[jqKey] == bytes32(0), "jqKey duplicate"); 
@@ -178,7 +179,7 @@ contract IgniteOracle is AccessControl {
 
             // Check if proof matches with questionId.
             jqKey = keccak256(
-                abi.encodePacked(proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
+                abi.encodePacked(questionId, proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
             );
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 
@@ -199,7 +200,6 @@ contract IgniteOracle is AccessControl {
         }
 
         if (finalize) {
-
             // Find winner ID.
             uint256 winnerId = type(uint256).max;
             uint256 jqProcessedCount;

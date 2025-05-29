@@ -3,9 +3,9 @@
 pragma solidity ^0.8.26;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
-import {IWeb2Json} from "@flarenetwork/flare-periphery-contracts/coston2/IWeb2Json.sol";
-import {IFdcVerification} from "@flarenetwork/flare-periphery-contracts/coston2/IFdcVerification.sol";
+import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/flare/ContractRegistry.sol";
+import {IWeb2Json} from "@flarenetwork/flare-periphery-contracts/flare/IWeb2Json.sol";
+import {IFdcVerification} from "@flarenetwork/flare-periphery-contracts/flare/IFdcVerification.sol";
 
 
 interface IConditionalTokens {
@@ -13,7 +13,7 @@ interface IConditionalTokens {
     function reportPayouts(bytes32 questionId, uint[] calldata payouts) external;
 }
 
-contract IgniteOracleCoston is AccessControl {
+contract IgniteOracle is AccessControl {
     /**
     * @dev Emitted when a resolution vote is cast. 
     * @param voter Voter's address.

@@ -26,7 +26,7 @@
     "solidity-coverage": "^0.8.14"
   },
   "dependencies": {
-    "@flarenetwork/flare-periphery-contracts": "^0.1.24",
+    "@flarenetwork/flare-periphery-contracts": "^0.1.26",
     "@openzeppelin/contracts": "^5.0.1",
     "@openzeppelin/contracts-upgradeable": "^5.0.1"
   }

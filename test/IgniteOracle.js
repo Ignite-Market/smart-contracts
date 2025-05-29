@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { createProofList } = require('./helpers/utils');
 
-describe("IgniteOracleCoston", function () {
+describe("IgniteOracle", function () {
     let owner, ORACLE, CONDITIONAL_TOKENS, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
 
     let curDate = Math.ceil(new Date().getTime() / 1000);
@@ -25,7 +25,7 @@ describe("IgniteOracleCoston", function () {
         CONDITIONAL_TOKENS = await conditionalTokensF.deploy();
         await CONDITIONAL_TOKENS.deployed();
 
-        const oracleF = await ethers.getContractFactory("IgniteOracleCoston");
+        const oracleF = await ethers.getContractFactory("IgniteOracle");
         ORACLE = await oracleF.deploy(
             owner.address, // admin
             CONDITIONAL_TOKENS.address, // conditionalTokens

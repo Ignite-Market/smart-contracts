@@ -12,17 +12,21 @@ function createProofList(results) {
     proofs.push({
       merkleProof: [],
       data: {
-        attestationType: ethers.utils.formatBytes32String("JsonApi"),
-        sourceId: ethers.utils.formatBytes32String("Source_01"),
+        attestationType: ethers.utils.formatBytes32String("Web2Json"),
+        sourceId: ethers.utils.formatBytes32String("PublicWeb2"),
         votingRound: 0,
         lowestUsedTimestamp: 0,
         requestBody: {
           url: res.url,
-          postprocessJq: "",
-          abi_signature: ""
+          postProcessJq: "",
+          abiSignature: "",
+          httpMethod: "GET",
+          body: '{}',
+          headers: '{}',
+          queryParams: '{}'
         },
         responseBody: { 
-          abi_encoded_data: ethers.utils.defaultAbiCoder.encode(
+          abiEncodedData: ethers.utils.defaultAbiCoder.encode(
             [ "uint256" ], 
             [ res.result ]
           )

@@ -23,7 +23,7 @@ describe("IgniteOracle", function () {
         [owner, voter1, voter2, voter3, noRoleVoter] = await ethers.getSigners();
 
         const conditionalTokensF = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
-        CONDITIONAL_TOKENS = await conditionalTokensF.deploy();
+        CONDITIONAL_TOKENS = await conditionalTokensF.deploy("0x0000000000000000000000000000000000000000");
         await CONDITIONAL_TOKENS.deployed();
 
         const verificationF = await ethers.getContractFactory("DummyVerification");

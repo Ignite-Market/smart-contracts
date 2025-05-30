@@ -8,8 +8,6 @@ import "./CTHelpers.sol";
 
 contract ConditionalTokens is ERC1155, Ownable {
 
-    constructor() ERC1155("") Ownable(msg.sender) {}
-
     /// @dev Emitted upon the successful preparation of a condition.
     /// @param conditionId The condition's ID. This ID may be derived from the other three parameters via ``keccak256(abi.encodePacked(oracle, questionId, outcomeSlotCount))``.
     /// @param oracle The account assigned to report the result for the prepared condition.
@@ -65,9 +63,27 @@ contract ConditionalTokens is ERC1155, Ownable {
     /// Mapping key is an oracle address. Value represents if the oracle is allowed to prepare conditions.
     mapping(address => bool) public oracles;
 
+    mapping(address => bool) public marketMakers;
+
+    address public factory;
+
     modifier onlyOracle() {
         require(oracles[msg.sender], "not an oracle");
         _;
+    }
+
+    modifier onlyMarketMaker() {
+        require(marketMakers[msg.sender], "not the market maker");
+        _;
+    }
+
+    modifier onlyOwnerOrFactory() {
+        require(msg.sender == owner() || msg.sender == factory, "not the owner or factory");
+        _;
+    }
+
+    constructor(address _factory) ERC1155("") Ownable(msg.sender) {
+        factory = _factory;
     }
 
     /// @dev This function prepares a condition by initializing a payout vector associated with the condition.
@@ -113,7 +129,7 @@ contract ConditionalTokens is ERC1155, Ownable {
         bytes32 conditionId,
         uint[] calldata partition,
         uint amount
-    ) external {
+    ) external onlyMarketMaker {
         require(partition.length > 1, "got empty or singleton partition");
         uint outcomeSlotCount = payoutNumerators[conditionId].length;
         require(outcomeSlotCount > 0, "condition not prepared yet");
@@ -165,7 +181,7 @@ contract ConditionalTokens is ERC1155, Ownable {
         bytes32 conditionId,
         uint[] calldata partition,
         uint amount
-    ) external {
+    ) external onlyMarketMaker {
         require(partition.length > 1, "got empty or singleton partition");
         uint outcomeSlotCount = payoutNumerators[conditionId].length;
         require(outcomeSlotCount > 0, "condition not prepared yet");
@@ -293,5 +309,13 @@ contract ConditionalTokens is ERC1155, Ownable {
 
     function setOracle(address oracle, bool allowed) external onlyOwner {
         oracles[oracle] = allowed;
+    }
+
+    function setMarketMaker(address _marketMaker, bool allowed) external onlyOwnerOrFactory {
+        marketMakers[_marketMaker] = allowed;
+    }
+
+    function setFactory(address _factory) external onlyOwner {
+        factory = _factory;
     }
 }

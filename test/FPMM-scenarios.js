@@ -201,10 +201,11 @@ describe('FixedProductMarketMakerScenarios', function() {
         const ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
         const WETH9 = await ethers.getContractFactory("MockCoin");
         const FixedProductMarketMakerFactory = await ethers.getContractFactory("FixedProductMarketMakerFactory");
-
-        conditionalTokens = await ConditionalTokens.deploy();
-        collateralToken = await WETH9.deploy();
         fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
+        await fixedProductMarketMakerFactory.deployed();
+
+        conditionalTokens = await ConditionalTokens.deploy(fixedProductMarketMakerFactory.address);
+        collateralToken = await WETH9.deploy();
 
         await conditionalTokens.setOracle(oracle.address, true);
 

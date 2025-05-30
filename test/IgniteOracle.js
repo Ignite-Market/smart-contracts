@@ -836,15 +836,15 @@ describe("IgniteOracle", function () {
         const automaticResolution = true;
 
         const urlAr = [
-            "http://www.nba.com/api",
-            "http://www.bet365.com/api",
-            "http://www.random.com/api",
+            MockApiUrl.API1_1,
+            MockApiUrl.API2_1,
+            MockApiUrl.API3_0
         ];
 
         const postprocessJqAr = [
-            "",
-            "",
-            "",
+            '{ "outcomeIdx": .result }',
+            '{ "outcomeIdx": .result }',
+            '{ "outcomeIdx": .result }',
         ]
 
         beforeEach(async ()=> {

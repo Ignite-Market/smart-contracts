@@ -139,10 +139,6 @@ function createProofList(results) {
         },
         responseBody: { 
           abiEncodedData: proof.abiEncodedData
-          // abiEncodedData: ethers.utils.defaultAbiCoder.encode(
-          //   [ "uint256" ], 
-          //   [ res.result ]
-          // )
         }
       }
     });

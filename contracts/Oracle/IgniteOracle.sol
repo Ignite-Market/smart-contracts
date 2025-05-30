@@ -184,7 +184,7 @@ contract IgniteOracle is AccessControl {
 
             // Check if proof matches with questionId.
             jqKey = keccak256(
-                abi.encode(questionId, proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
+                abi.encode(questionId, proof.data.requestBody.url, proof.data.requestBody.postProcessJq)
             );
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 

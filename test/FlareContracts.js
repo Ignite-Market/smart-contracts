@@ -141,11 +141,13 @@ const CONTRACT_REGISTRY_ABI = [
   }
 ];
 
-describe("Flare Contracts on Forked Coston2", function () {
+describe("Flare Contracts on forked testnet", function () {
   let provider;
   let registry;
 
   before(async function () {
+    await hre.network.provider.send("hardhat_reset", [{ forking: { jsonRpcUrl: hre.config.networks.hardhat.forking.url } }]);
+        
     provider = ethers.provider;
     registry = new ethers.Contract(CONTRACT_REGISTRY_ADDRESS, CONTRACT_REGISTRY_ABI, provider);
   });
@@ -164,7 +166,7 @@ describe("Flare Contracts on Forked Coston2", function () {
   });
 
   it("Should print all registered contract names and addresses", async function () {
-    const [names, addresses] = await registry.getAllContracts();
+    const [names, _addresses] = await registry.getAllContracts();
     expect(names).to.include("FdcVerification");
   });
 }); 

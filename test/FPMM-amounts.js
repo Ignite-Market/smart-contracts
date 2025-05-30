@@ -112,6 +112,7 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
+                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -125,7 +126,6 @@ describe('FixedProductMarketMakerAmounts', function() {
             predictedAddress
         );
 
-        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
         await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding
@@ -224,6 +224,7 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
+                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -237,7 +238,6 @@ describe('FixedProductMarketMakerAmounts', function() {
             predictedAddress
         );
 
-        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
         await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding
@@ -421,10 +421,11 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
+                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
-                fundingThreshold,
+                fundingThreshold,   
                 endTime,
                 salt
             );
@@ -434,7 +435,6 @@ describe('FixedProductMarketMakerAmounts', function() {
             predictedAddress
         );
 
-        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
         await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding with 50/50 split
@@ -600,6 +600,7 @@ describe('FixedProductMarketMakerAmounts', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
+                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -612,8 +613,7 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
-
-        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
+    
         await fixedProductMarketMaker.connect(creator).finalizeSetup(); 
 
         // Add funding with 50/50 split

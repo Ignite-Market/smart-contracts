@@ -43,6 +43,7 @@ describe("FPMM Full Lifecycle", function () {
     const tx = await factory.createFixedProductMarketMaker(
       conditionalTokens.address,
       collateralToken.address,
+      [conditionId],
       feeFactor,
       treasuryPercent,
       treasury.address,
@@ -55,7 +56,6 @@ describe("FPMM Full Lifecycle", function () {
     fpmm = await ethers.getContractAt("FixedProductMarketMaker", event.args.fixedProductMarketMaker);
     console.log("owner", owner.address);
     console.log("fpmm creator", await fpmm.creator());
-    await fpmm.connect(owner).batchAddConditions([conditionId]);
     await fpmm.connect(owner).finalizeSetup();
   });
 

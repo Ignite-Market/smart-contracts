@@ -55,6 +55,7 @@ describe('FixedProductMarketMaker', function() {
         const createArgs = [
             conditionalTokens.address,
             collateralToken.address,
+            [conditionId],
             feeFactor,
             treasuryPercent,
             treasury.address,
@@ -99,6 +100,7 @@ describe('FixedProductMarketMaker', function() {
         .createFixedProductMarketMaker(
             conditionalTokens.address,
             collateralToken.address,
+            [conditionId],
             feeFactor,
             treasuryPercent,
             treasury.address,
@@ -119,17 +121,8 @@ describe('FixedProductMarketMaker', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
-
-        await expect(
-            fixedProductMarketMaker.connect(trader).batchAddConditions([conditionId])
-        ).to.be.revertedWith('not creator');
-
-        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
         await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
-        await expect(
-            fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId])
-        ).to.be.revertedWith("Already finalized");
     });
 
 
@@ -431,6 +424,7 @@ describe('FixedProductMarketMaker Multiple Conditions', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
+                conditionIds,
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -444,7 +438,6 @@ describe('FixedProductMarketMaker Multiple Conditions', function() {
             predictedAddress
         );
 
-        await fixedProductMarketMaker.connect(creator).batchAddConditions(conditionIds);
         await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Process remaining batches if setup is not complete

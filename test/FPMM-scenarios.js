@@ -168,6 +168,7 @@ describe('FixedProductMarketMakerScenarios', function() {
             .createFixedProductMarketMaker(
                 conditionalTokens.address,
                 collateralToken.address,
+                [conditionId],
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
@@ -181,7 +182,6 @@ describe('FixedProductMarketMakerScenarios', function() {
             predictedAddress
         );
 
-        await fixedProductMarketMaker.connect(creator).batchAddConditions([conditionId]);
         await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         await collateralToken.connect(investor1).deposit({ value: funding });

@@ -60,6 +60,9 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
     bool public isSetupStarted;
     uint public setupStepsProcessed;
 
+    string public constant NAME = "FPMM Shares";
+    string public constant SYMBOL = "FPMM";
+
     modifier onlyWhenSetupComplete() {
         require(isSetupComplete, "Setup not complete");
         _;
@@ -71,10 +74,9 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
     }
 
     function initializeBase(
-        string memory name,
-        string memory symbol,
         ConditionalTokens _conditionalTokens,
         IERC20 _collateralToken,
+        bytes32[] memory conditions,
         uint _fee,
         uint _treasuryPercent,
         address _treasury,
@@ -85,7 +87,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         require(address(conditionalTokens) == address(0), "already initialized");
         require(_treasuryPercent <= 10000, "treasury percent must be <= 10000");
         require(_fee < ONE, "fee must be less than or equal to ONE");
-        __ERC20_init(name, symbol); // initialize ERC20 properly
+        __ERC20_init(NAME, SYMBOL); // initialize ERC20 properly
         conditionalTokens = _conditionalTokens;
         collateralToken = _collateralToken;
         fee = _fee;
@@ -94,10 +96,6 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         fundingThreshold = _fundingThreshold;
         endTime = _endTime;
         creator = _creator;
-    }
-
-    function batchAddConditions(bytes32[] memory conditions) external onlyCreator {
-        require(!isSetupComplete, "Already finalized");
 
         for (uint i = 0; i < conditions.length; i++) {
             uint count = conditionalTokens.getOutcomeSlotCount(conditions[i]);

@@ -54,6 +54,9 @@ module.exports = {
       gasPrice: "auto",
       explorer: "https://opcelestia-raspberry.gelatoscout.com/",
     },
+    flareTestnetCoston2: {
+      url: 'https://coston2-api.flare.network/ext/C/rpc'
+    },
     hardhat: {
       // blockGasLimit: 15000000,
       forking: {
@@ -66,6 +69,7 @@ module.exports = {
     apiKey: {
       baseSepolia: baseSepoliaApiKey,
       coston2: "coston2", // apiKey is not required, just set a placeholder
+      flareTestnetCoston2: "empty"
     },
     customChains: [
       {
@@ -86,14 +90,13 @@ module.exports = {
         },
       },
       {
-        network: "coston2",
+        network: "flareTestnetCoston2",
         chainId: 114,
         urls: {
-          apiURL:
-            "https://api.routescan.io/v2/network/testnet/evm/114/etherscan",
-          browserURL: "https://coston2.testnet.flarescan.com",
-        },
-      },
+          apiURL: "https://coston2-explorer.flare.network/api",
+          browserURL: "https://coston2-explorer.flare.network"
+        }
+      }
     ],
   },
   abiExporter: {

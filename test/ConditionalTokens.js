@@ -29,10 +29,11 @@ describe("ConditionalTokens", function() {
 
     // ConditionalTokens = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
     ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
-    conditionalTokens = await ConditionalTokens.deploy();
+    conditionalTokens = await ConditionalTokens.deploy("0x0000000000000000000000000000000000000000");
     await conditionalTokens.deployed();
 
     await conditionalTokens.setOracle(oracle.address, true);
+    await conditionalTokens.setMarketMaker(eoaTrader.address, true);
 
     ERC20Mintable = await ethers.getContractFactory("contracts/Test/MockCoin.sol:MockCoin");
     collateralToken = await ERC20Mintable.deploy();

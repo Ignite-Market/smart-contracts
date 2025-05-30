@@ -80,6 +80,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
             create2Clone(address(implementationMaster), initData, salt)
         );
 
+        conditionalTokens_.setMarketMaker(address(fpm), true);
+
         emit FixedProductMarketMakerCreation(
             msg.sender,
             fpm,

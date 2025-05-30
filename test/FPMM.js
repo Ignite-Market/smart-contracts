@@ -37,11 +37,12 @@ describe('FixedProductMarketMaker', function() {
         const ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
         const WETH9 = await ethers.getContractFactory("MockCoin");
         const FixedProductMarketMakerFactory = await ethers.getContractFactory("FixedProductMarketMakerFactory");
+        fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
+        await fixedProductMarketMakerFactory.deployed();
 
-        conditionalTokens = await ConditionalTokens.deploy();
+        conditionalTokens = await ConditionalTokens.deploy(fixedProductMarketMakerFactory.address);
         await conditionalTokens.setOracle(oracle.address, true);
         collateralToken = await WETH9.deploy();
-        fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
 
         positionIds = collectionIds.map(collectionId => 
             getPositionId(collateralToken.address, collectionId)
@@ -378,11 +379,12 @@ describe('FixedProductMarketMaker Multiple Conditions', function() {
         const ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
         const WETH9 = await ethers.getContractFactory("MockCoin");
         const FixedProductMarketMakerFactory = await ethers.getContractFactory("FixedProductMarketMakerFactory");
+        fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
+        await fixedProductMarketMakerFactory.deployed();
 
-        conditionalTokens = await ConditionalTokens.deploy();
+        conditionalTokens = await ConditionalTokens.deploy(fixedProductMarketMakerFactory.address);
         await conditionalTokens.setOracle(oracle.address, true);
         collateralToken = await WETH9.deploy();
-        fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
 
         // Initialize questionIds and conditionIds
         questionIds = Array.from({ length: numConditions }, (_, i) => randomHex(32));

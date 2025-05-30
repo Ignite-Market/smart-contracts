@@ -27,9 +27,10 @@ describe("FPMM Full Lifecycle", function () {
     const Conditional = await ethers.getContractFactory("ConditionalTokens");
     const Factory = await ethers.getContractFactory("FixedProductMarketMakerFactory");
 
-    collateralToken = await Collateral.deploy();
-    conditionalTokens = await Conditional.deploy();
     factory = await Factory.deploy();
+    await factory.deployed();
+    collateralToken = await Collateral.deploy();
+    conditionalTokens = await Conditional.deploy(factory.address);
 
     positionIds = collectionIds.map(cid => getPositionId(collateralToken.address, cid));
 

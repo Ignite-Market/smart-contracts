@@ -58,6 +58,7 @@ module.exports = {
       // blockGasLimit: 15000000,
       forking: {
         url: `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${coston2RpcApi}`,
+        jsonRpcUrl: `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${coston2RpcApi}`,
       },
     }
   },

@@ -30,7 +30,7 @@ describe('FixedProductMarketMakerAmounts', function() {
     let endTime;
 
     before(async function() {
-        await hre.network.provider.send("hardhat_reset");
+        await hre.network.provider.send("hardhat_reset", [{ forking: { jsonRpcUrl: hre.config.networks.hardhat.forking.url } }]);
     });
 
     beforeEach(async () => {

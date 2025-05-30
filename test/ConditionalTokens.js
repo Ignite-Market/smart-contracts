@@ -21,7 +21,7 @@ describe("ConditionalTokens", function() {
   let minter, oracle, notOracle, eoaTrader, fwdExecutor, counterparty;
 
   before(async () => {
-    await hre.network.provider.send("hardhat_reset");
+    await hre.network.provider.send("hardhat_reset", [{ forking: { jsonRpcUrl: hre.config.networks.hardhat.forking.url } }]);
   });
 
   beforeEach(async function() {
@@ -41,19 +41,6 @@ describe("ConditionalTokens", function() {
     Forwarder = await ethers.getContractFactory("contracts/Test/Forwarder.sol:Forwarder");
     forwarder = await Forwarder.deploy();
     await forwarder.deployed();
-  });
-
-  describe("DUMMY-TESTING", function() {
-    it("some random test", async function() {
-      const questionId = ethers.utils.randomBytes(32);
-      const outcomeSlotCount = 2;
-
-      await conditionalTokens.connect(oracle).prepareCondition(
-        oracle.address,
-        questionId,
-        outcomeSlotCount
-      )
-    });
   });
 
   describe("prepareCondition", function() {

@@ -1,10 +1,9 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { createProofList } = require('./helpers/utils');
-const { toUtf8CodePoints } = require("ethers/lib/utils");
 
 describe("IgniteOracle", function () {
-    let owner, ORACLE, CONDITIONAL_TOKENS, VERIFICATION, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
+    let owner, ORACLE, CONDITIONAL_TOKENS, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
 
     let curDate = Math.ceil(new Date().getTime() / 1000);
 
@@ -26,15 +25,10 @@ describe("IgniteOracle", function () {
         CONDITIONAL_TOKENS = await conditionalTokensF.deploy("0x0000000000000000000000000000000000000000");
         await CONDITIONAL_TOKENS.deployed();
 
-        const verificationF = await ethers.getContractFactory("DummyVerification");
-        VERIFICATION = await verificationF.deploy();
-        await VERIFICATION.deployed();
-
         const oracleF = await ethers.getContractFactory("IgniteOracle");
         ORACLE = await oracleF.deploy(
             owner.address, // admin
             CONDITIONAL_TOKENS.address, // conditionalTokens
-            VERIFICATION.address, // verification
             3, // minVotes
         );
         await ORACLE.deployed();

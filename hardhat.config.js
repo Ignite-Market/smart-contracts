@@ -58,7 +58,10 @@ module.exports = {
       url: 'https://coston2-api.flare.network/ext/C/rpc'
     },
     hardhat: {
-      blockGasLimit: 15000000
+      // blockGasLimit: 15000000,
+      forking: {
+        url: `https://coston2-api.flare.network/ext/C/rpc?x-apikey=${coston2RpcApi}`,
+      },
     }
   },
   etherscan: {

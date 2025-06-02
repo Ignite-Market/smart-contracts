@@ -76,7 +76,12 @@ Run `npx hardhat run --network coston2 ./scripts/deploy-oracle.js`.
 Verify contract `npx hardhat verify --network coston2 CONTRACT_ADDRESS ARG1 ARG2 ....`
 
 
+After the CT are deployed you need to set Oracle via `setOracle`.
+After FPMM Factory is deployed you need to verify the FPMM implementation after the first FPMM is deployed (https://eips.ethereum.org/EIPS/eip-1167).
+
 ## Coston2 deployment:
 FixedProductMarketMakerFactory: 0x520ba2749A4091D540F617EDc8A279411E286f4B
 ConditionalTokens: 0x1f75110bF2C2494542cc26469BEe169bC4e6fA4f
 IgniteOracle: 0xe97598CdFFd75efC698b7483a88612cf2570E72c
+
+

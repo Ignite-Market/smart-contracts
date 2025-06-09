@@ -42,6 +42,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
     uint internal totalWithdrawnFees;
 
     uint public fundingAmountTotal;
+    uint public currentLiquidity;
 
     bool public isSetupComplete;
     address public creator;
@@ -293,6 +294,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         }
 
         fundingAmountTotal += addedFunds;
+        currentLiquidity += addedFunds;
         emit FPMMFundingAdded(msg.sender, sendBackAmounts, mintAmount);
     }
 
@@ -319,7 +321,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
 
     function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external nonReentrant onlyWhenSetupComplete {
         require(canTrade(), "trading not allowed");
-        require((investmentAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
+        require((investmentAmount * 100) / currentLiquidity <= 10, "amount can be up to 10% of currentLiquidity");
 
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
@@ -333,12 +335,14 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         splitPositionThroughAllConditions(investmentAmountMinusFees);
 
         conditionalTokens.safeTransferFrom(address(this), msg.sender, positionIds[outcomeIndex], outcomeTokensToBuy, "");
+
+        currentLiquidity += investmentAmount;
         emit FPMMBuy(msg.sender, investmentAmount, feeAmount, outcomeIndex, outcomeTokensToBuy);
     }
 
     function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external nonReentrant onlyWhenSetupComplete {
         require(canTrade(), "trading not allowed");
-        require((returnAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
+        require((returnAmount * 100) / currentLiquidity <= 10, "amount can be up to 10% of currentLiquidity");
 
         uint outcomeTokensToSell = calcSellAmount(returnAmount, outcomeIndex);
         require(outcomeTokensToSell <= maxOutcomeTokensToSell, "maximum sell amount exceeded");
@@ -351,6 +355,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         mergePositionsThroughAllConditions(returnAmountPlusFees);
         collateralToken.safeTransfer(msg.sender, returnAmount);
 
+        currentLiquidity -= returnAmount;
         emit FPMMSell(msg.sender, returnAmount, feeAmount, outcomeIndex, outcomeTokensToSell);
     }
 

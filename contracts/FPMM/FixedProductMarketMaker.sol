@@ -461,7 +461,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         uint256 value,
         bytes calldata data
     ) external override returns(bytes4) {
-        return this.onERC1155Received.selector;
+         if (operator == address(this)) {
+            return this.onERC1155Received.selector;
+        }
+        return 0x0;
     }
 
     function onERC1155BatchReceived(
@@ -471,7 +474,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         uint256[] calldata values,
         bytes calldata data
     ) external override returns(bytes4) {
-        return this.onERC1155BatchReceived.selector;
+        if (operator == address(this) && from == address(0)) {
+            return this.onERC1155BatchReceived.selector;
+        }
+        return 0x0;
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {

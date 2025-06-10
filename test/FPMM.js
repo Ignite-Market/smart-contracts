@@ -14,6 +14,7 @@ describe('FixedProductMarketMaker', function() {
     let collectionIds;
 
     let conditionalTokens;
+    let conditionId;
     let collateralToken;
     let fixedProductMarketMakerFactory;
     let positionIds;
@@ -546,7 +547,7 @@ function calcSellAmountInCollateral(
     /* Newton-Raphson method is used to find the root of a function.
      * Root of a function is the point where the function touches the x-axis on a graph.
      * In this case y-axis is the number of outcome tokens / shares.
-     * The x-axis is the number of colleral tokens to be received.
+     * The x-axis is the number of collateral tokens to be received.
      * This meaning we want to know how much collateral we need to receive to have 0 outcome tokens / shares.
      */
     const r = newtonRaphson(f, 0, { maxIterations: 100 });

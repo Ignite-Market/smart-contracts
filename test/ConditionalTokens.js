@@ -27,7 +27,6 @@ describe("ConditionalTokens", function() {
   beforeEach(async function() {
     [minter, oracle, notOracle, eoaTrader, fwdExecutor, counterparty] = await ethers.getSigners();
 
-    // ConditionalTokens = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
     ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
     conditionalTokens = await ConditionalTokens.deploy("0x0000000000000000000000000000000000000000");
     await conditionalTokens.deployed();

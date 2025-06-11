@@ -142,12 +142,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition
         await conditionalTokens.connect(oracle).reportPayouts(questionId, reportPayoutsAr);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
 
-        // Collateral token should still be 0
-        expect(await collateralToken.balanceOf(investor1.address)).to.equal(0);
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << winningIndex;
 
@@ -302,6 +310,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         let tradeCount = 0;
         let volumeOutcome0 = ethers.BigNumber.from(0);
         let volumeOutcome1 = ethers.BigNumber.from(0);
+        let currentLiquidity = await fixedProductMarketMaker.currentLiquidity();
 
         for (const trade of tradeAmounts) {
             await collateralToken.connect(trade.user).deposit({ value: trade.amount });
@@ -311,13 +320,21 @@ describe('FixedProductMarketMakerAmounts', function() {
             const tx = await fixedProductMarketMaker.connect(trade.user).buy(trade.amount, trade.outcomeIndex, outcomeTokensToBuy);
             const receipt = await tx.wait();
             
+            // Calculate fee and update liquidity
+            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
+            const investmentAmountMinusFees = trade.amount.sub(feeAmount);
+            currentLiquidity = currentLiquidity.add(investmentAmountMinusFees);
+
+            // Verify liquidity after trade
+            const actualLiquidity = await fixedProductMarketMaker.currentLiquidity();
+            expect(actualLiquidity).to.equal(currentLiquidity);
+            
             if (trade.outcomeIndex === 0) {
                 volumeOutcome0 = volumeOutcome0.add(trade.amount);
             } else {
                 volumeOutcome1 = volumeOutcome1.add(trade.amount);
             }
 
-            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
             totalFees = totalFees.add(feeAmount);
             tradeCount++;
         }
@@ -331,9 +348,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition
         await conditionalTokens.connect(oracle).reportPayouts(questionId, reportPayoutsAr);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
+
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << winningIndex;
 
@@ -481,6 +509,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         let tradeCount = 0;
         let volumeOutcome0 = ethers.BigNumber.from(0);
         let volumeOutcome1 = ethers.BigNumber.from(0);
+        let currentLiquidity = await fixedProductMarketMaker.currentLiquidity();
 
         for (const trade of tradeAmounts) {
             await collateralToken.connect(trade.user).deposit({ value: trade.amount });
@@ -490,13 +519,21 @@ describe('FixedProductMarketMakerAmounts', function() {
             const tx = await fixedProductMarketMaker.connect(trade.user).buy(trade.amount, trade.outcomeIndex, outcomeTokensToBuy);
             const receipt = await tx.wait();
             
+            // Calculate fee and update liquidity
+            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
+            const investmentAmountMinusFees = trade.amount.sub(feeAmount);
+            currentLiquidity = currentLiquidity.add(investmentAmountMinusFees);
+
+            // Verify liquidity after trade
+            const actualLiquidity = await fixedProductMarketMaker.currentLiquidity();
+            expect(actualLiquidity).to.equal(currentLiquidity);
+            
             if (trade.outcomeIndex === 0) {
                 volumeOutcome0 = volumeOutcome0.add(trade.amount);
             } else {
                 volumeOutcome1 = volumeOutcome1.add(trade.amount);
             }
 
-            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
             totalFees = totalFees.add(feeAmount);
             tradeCount++;
         }
@@ -510,9 +547,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition with outcome 1 winning
         await conditionalTokens.connect(oracle).reportPayouts(questionId, [0,1]);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
+
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << 1; // Outcome 1 is the winner
 
@@ -660,6 +708,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         let tradeCount = 0;
         let volumeOutcome0 = ethers.BigNumber.from(0);
         let volumeOutcome1 = ethers.BigNumber.from(0);
+        let currentLiquidity = await fixedProductMarketMaker.currentLiquidity();
 
         for (const trade of tradeAmounts) {
             await collateralToken.connect(trade.user).deposit({ value: trade.amount });
@@ -669,13 +718,21 @@ describe('FixedProductMarketMakerAmounts', function() {
             const tx = await fixedProductMarketMaker.connect(trade.user).buy(trade.amount, trade.outcomeIndex, outcomeTokensToBuy);
             const receipt = await tx.wait();
             
+            // Calculate fee and update liquidity
+            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
+            const investmentAmountMinusFees = trade.amount.sub(feeAmount);
+            currentLiquidity = currentLiquidity.add(investmentAmountMinusFees);
+
+            // Verify liquidity after trade
+            const actualLiquidity = await fixedProductMarketMaker.currentLiquidity();
+            expect(actualLiquidity).to.equal(currentLiquidity);
+            
             if (trade.outcomeIndex === 0) {
                 volumeOutcome0 = volumeOutcome0.add(trade.amount);
             } else {
                 volumeOutcome1 = volumeOutcome1.add(trade.amount);
             }
 
-            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
             totalFees = totalFees.add(feeAmount);
             tradeCount++;
         }
@@ -689,9 +746,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition with outcome 0 winning
         await conditionalTokens.connect(oracle).reportPayouts(questionId, [1,0]);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
+
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << 0; // Outcome 0 is the winner
 

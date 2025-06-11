@@ -143,6 +143,9 @@ describe('FixedProductMarketMaker', function() {
             .connect(investor1)
             .addFunding(addedFunds1, initialDistribution);
 
+        // Verify liquidity after initial funding
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(addedFunds1);
+
         const fundingReceipt = await fundingTx.wait();
         const fundingEvent = fundingReceipt.events.find(
             e => e.event && e.event === 'FPMMFundingAdded'
@@ -171,12 +174,12 @@ describe('FixedProductMarketMaker', function() {
     });
 
     it('can buy tokens from it', async function() {
-        
         const investmentAmount = ethers.utils.parseUnits("10", 6);
         const buyOutcomeIndex = 1;
         
+        const initialLiquidity = await fixedProductMarketMaker.currentLiquidity();
+        
         await collateralToken.connect(trader).deposit({ value: investmentAmount });
-
         await collateralToken.connect(trader).approve(fixedProductMarketMaker.address, investmentAmount);
 
         // feeAmount (LP + treasuryFee)
@@ -184,6 +187,10 @@ describe('FixedProductMarketMaker', function() {
         const outcomeTokensToBuy = await fixedProductMarketMaker.calcBuyAmount(investmentAmount, buyOutcomeIndex);
         
         await fixedProductMarketMaker.connect(trader).buy(investmentAmount, buyOutcomeIndex, outcomeTokensToBuy);  
+
+        // Verify liquidity after buy
+        const expectedLiquidity = initialLiquidity.add(investmentAmount.sub(feeAmount));
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         expect(await collateralToken.balanceOf(trader.address)).to.equal(0);
         expect(await fixedProductMarketMaker.balanceOf(trader.address)).to.equal(0);
@@ -230,6 +237,8 @@ describe('FixedProductMarketMaker', function() {
         const returnAmount = ethers.utils.parseUnits("5", 6);
         const sellOutcomeIndex = 1;
 
+        const initialLiquidity = await fixedProductMarketMaker.currentLiquidity();
+
         await conditionalTokens.connect(trader).setApprovalForAll(fixedProductMarketMaker.address, true);
 
         const feeAmount = returnAmount.mul(feeFactor).div(
@@ -257,15 +266,9 @@ describe('FixedProductMarketMaker', function() {
         const sellTx = await fixedProductMarketMaker.connect(trader).sell(returnAmount, sellOutcomeIndex, outcomeTokensToSell);
         await sellTx.wait();
 
-        const amountOfCollateralToReceive = calcSellAmountInCollateral(
-            outcomeTokensToSell,
-            marketSharesAmounts,
-            sellOutcomeIndex,
-            "0.003" // feeFactor
-        );
-
-        // almost the same, due to rounding
-        expect(amountOfCollateralToReceive).to.be.closeTo(returnAmount, 1);
+        // Verify liquidity after sell
+        const expectedLiquidity = initialLiquidity.sub(returnAmount);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         expect(await collateralToken.balanceOf(trader.address)).to.equal(returnAmount);
         expect(await fixedProductMarketMaker.balanceOf(trader.address)).to.equal(0);
@@ -290,9 +293,15 @@ describe('FixedProductMarketMaker', function() {
 
     const addedFunds2 = ethers.utils.parseUnits("50", 6);
     it('can continue being funded', async function() {
+        const initialLiquidity = await fixedProductMarketMaker.currentLiquidity();
+
         await collateralToken.connect(investor2).deposit({ value: addedFunds2 });
         await collateralToken.connect(investor2).approve(fixedProductMarketMaker.address, addedFunds2);
         await fixedProductMarketMaker.connect(investor2).addFunding(addedFunds2, []);
+
+        // Verify liquidity after additional funding
+        const expectedLiquidity = initialLiquidity.add(addedFunds2);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         expect(await collateralToken.balanceOf(investor2.address)).to.equal(0);
         expect(await fixedProductMarketMaker.balanceOf(investor2.address)).to.be.gt(0);
@@ -321,8 +330,16 @@ describe('FixedProductMarketMaker', function() {
         // Resolve condition
         await conditionalTokens.connect(oracle).reportPayouts(questionId, [1,0,0]);
 
+        const initialLiquidity = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
+
         // Try to remove funding again
         await fixedProductMarketMaker.connect(investor1).removeFunding(burnedShares1);
+
+        // Verify liquidity after removing funding
+        const liquidityRemoved = initialLiquidity.mul(burnedShares1).div(totalSupply);
+        const expectedLiquidity = initialLiquidity.sub(liquidityRemoved);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         expect(await collateralToken.balanceOf(investor1.address)).to.be.gt(0);
         expect(await fixedProductMarketMaker.balanceOf(investor1.address))

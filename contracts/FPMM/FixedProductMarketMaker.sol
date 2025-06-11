@@ -316,6 +316,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         collateralRemovedFromFeePool = collateralRemovedFromFeePool - collateralToken.balanceOf(address(this));
 
         conditionalTokens.safeBatchTransferFrom(address(this), msg.sender, positionIds, sendAmounts, "");
+
+        uint256 removedFunds = (currentLiquidity * sharesToBurn) / poolShareSupply;
+        currentLiquidity -= removedFunds;
+
         emit FPMMFundingRemoved(msg.sender, sendAmounts, collateralRemovedFromFeePool, sharesToBurn);
     }
 
@@ -336,7 +340,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
 
         conditionalTokens.safeTransferFrom(address(this), msg.sender, positionIds[outcomeIndex], outcomeTokensToBuy, "");
 
-        currentLiquidity += investmentAmount;
+        currentLiquidity += investmentAmountMinusFees;
         emit FPMMBuy(msg.sender, investmentAmount, feeAmount, outcomeIndex, outcomeTokensToBuy);
     }
 
@@ -423,6 +427,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
 
         require(endingOutcomeBalance > 0, "must have non-zero balances");
         return returnAmountPlusFees + endingOutcomeBalance / ONE - sellTokenPoolBalance;
+    }
+
+    function isFunded() public view returns (bool) {
+        return fundingAmountTotal >= fundingThreshold;
     }
 
     function canTrade() public view returns (bool) {

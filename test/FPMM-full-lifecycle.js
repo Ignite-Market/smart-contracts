@@ -10,6 +10,7 @@ describe("FPMM Full Lifecycle", function () {
   const questionId = randomHex(32);
   const numOutcomes = 3;
   const feeFactor = ethers.utils.parseEther("0.003");
+  const ONE = ethers.BigNumber.from("10").pow(18);
   const treasuryPercent = 100; // 1%
   const fundingThreshold = ethers.utils.parseUnits("100", 6);
   const endTime = Math.floor(Date.now() / 1000) + 86400;
@@ -69,11 +70,19 @@ describe("FPMM Full Lifecycle", function () {
     await collateralToken.connect(user1).deposit({ value: fund1 });
     await collateralToken.connect(user1).approve(fpmm.address, fund1);
     await fpmm.connect(user1).addFunding(fund1, []);
+    
+    // Verify liquidity after user1's funding
+    const liquidityAfterUser1 = fund1;
+    expect(await fpmm.currentLiquidity()).to.equal(liquidityAfterUser1);
 
     // Fund user2
     await collateralToken.connect(user2).deposit({ value: fund2 });
     await collateralToken.connect(user2).approve(fpmm.address, fund2);
     await fpmm.connect(user2).addFunding(fund2, []);
+
+    // Verify liquidity after user2's funding
+    const liquidityAfterUser2 = liquidityAfterUser1.add(fund2);
+    expect(await fpmm.currentLiquidity()).to.equal(liquidityAfterUser2);
 
     // User1 buys tokens
     await collateralToken.connect(user1).deposit({ value: buyAmount });
@@ -85,8 +94,10 @@ describe("FPMM Full Lifecycle", function () {
     const maxBuy = await fpmm.calcBuyAmount(buyAmount, sellOutcomeIndex);
     await fpmm.connect(user1).buy(buyAmount, sellOutcomeIndex, maxBuy);
 
-    // Calculate buy fee in wei
-    const buyFee = buyAmount.mul(feeFactor).div(ethers.utils.parseEther("1"));
+    // Verify liquidity after buy
+    const buyFee = buyAmount.mul(feeFactor).div(ONE);
+    const liquidityAfterBuy = liquidityAfterUser2.add(buyAmount.sub(buyFee));
+    expect(await fpmm.currentLiquidity()).to.equal(liquidityAfterBuy);
 
     const traderTokenBalance = await conditionalTokens.balanceOf(user1.address, positionIds[sellOutcomeIndex]);
     const returnAmount = ethers.utils.parseUnits("5", 6);
@@ -97,7 +108,11 @@ describe("FPMM Full Lifecycle", function () {
     await fpmm.connect(user1).sell(returnAmount, sellOutcomeIndex, tokensToSell);
 
     // Calculate sell fee in wei
-    const sellFee = returnAmount.mul(feeFactor).div(ethers.utils.parseEther("1").sub(feeFactor));
+    const sellFee = returnAmount.mul(feeFactor).div(ONE.sub(feeFactor));
+    
+    // Verify liquidity after sell
+    const liquidityAfterSell = liquidityAfterBuy.sub(returnAmount);
+    expect(await fpmm.currentLiquidity()).to.equal(liquidityAfterSell);
 
     // Get fee pool weight after trades
     const afterTradesFeePoolWeight = await fpmm.getFeePoolWeight();
@@ -124,8 +139,16 @@ describe("FPMM Full Lifecycle", function () {
     // Get initial withdrawn fees for user2
     const initialWithdrawnFees = await fpmm.feesWithdrawableBy(user2.address);
 
+    // Get total supply before removal
+    const totalSupplyBeforeRemoval = await fpmm.totalSupply();
+
     // Remove funding and withdraw fees
     await fpmm.connect(user2).removeFunding(user2Shares);
+
+    // Verify liquidity after removing funding
+    const liquidityRemoved = liquidityAfterSell.mul(user2Shares).div(totalSupplyBeforeRemoval);
+    const liquidityAfterRemoval = liquidityAfterSell.sub(liquidityRemoved);
+    expect(await fpmm.currentLiquidity()).to.equal(liquidityAfterRemoval);
 
     // Verify fee distribution
     const finalUser2Balance = await collateralToken.balanceOf(user2.address);

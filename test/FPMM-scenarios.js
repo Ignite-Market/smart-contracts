@@ -790,7 +790,7 @@ describe('FixedProductMarketMakerScenarios', function() {
             console.log("Fees withdrawn:", ethers.utils.formatUnits(feesWithdrawn, 6), "USDC");
         });
 
-        it.skip('should handle 100k volume with 1k funding', async function() {
+        it('should handle 100k volume with 1k funding', async function() {
             const funding = ethers.utils.parseUnits("1000", 6);
             const initialDistribution = [
                 ethers.utils.parseUnits("500", 6),

@@ -1,12 +1,10 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { createProofList } = require('./helpers/utils');
-const { toUtf8CodePoints } = require("ethers/lib/utils");
+const { createProofList, MockApiUrl } = require('./helpers/utils');
 
 describe("IgniteOracle", function () {
-    let owner, ORACLE, CONDITIONAL_TOKENS, VERIFICATION, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
-
-    let curDate = Math.ceil(new Date().getTime() / 1000);
+    let owner, ORACLE, CONDITIONAL_TOKENS, voter1, voter2, voter3, VOTER_ROLE, noRoleVoter;
+    let curDate = null;
 
     STATUS_INVALID = 0;
     STATUS_ACTIVE = 1;
@@ -15,52 +13,60 @@ describe("IgniteOracle", function () {
 
     const ONE_WEEK = Number(60 * 60 * 24 * 7);
 
+    async function advanceTimeAndBlock(time) {
+        await ethers.provider.send("evm_increaseTime", [time]);
+        await ethers.provider.send("evm_mine");
+        const latestBlock = await ethers.provider.getBlock('latest');
+        curDate = latestBlock.timestamp;
+    }
+
     before(async () => {
-        await hre.network.provider.send("hardhat_reset");
+        await hre.network.provider.send("hardhat_reset", [{ forking: { jsonRpcUrl: hre.config.networks.hardhat.forking.url } }]);
     });
 
     beforeEach(async () => {
         [owner, voter1, voter2, voter3, noRoleVoter] = await ethers.getSigners();
 
         const conditionalTokensF = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
-        CONDITIONAL_TOKENS = await conditionalTokensF.deploy();
+        CONDITIONAL_TOKENS = await conditionalTokensF.deploy("0x0000000000000000000000000000000000000000");
         await CONDITIONAL_TOKENS.deployed();
-
-        const verificationF = await ethers.getContractFactory("DummyVerification");
-        VERIFICATION = await verificationF.deploy();
-        await VERIFICATION.deployed();
 
         const oracleF = await ethers.getContractFactory("IgniteOracle");
         ORACLE = await oracleF.deploy(
             owner.address, // admin
             CONDITIONAL_TOKENS.address, // conditionalTokens
-            VERIFICATION.address, // verification
             3, // minVotes
         );
         await ORACLE.deployed();
+
+        await CONDITIONAL_TOKENS.setOracle(ORACLE.address, true);
 
         VOTER_ROLE = await ORACLE.VOTER_ROLE();
 
         await ORACLE.grantRole(VOTER_ROLE, voter1.address);
         await ORACLE.grantRole(VOTER_ROLE, voter2.address);
         await ORACLE.grantRole(VOTER_ROLE, voter3.address);
+
+        // Get current block timestamp
+        const latestBlock = await ethers.provider.getBlock('latest');
+        curDate = latestBlock.timestamp;
     });
 
-    describe('Oracle flows', async () => {
-        it("flow: initialize automatic question -> finalize question", async function () {
+    describe('Oracle Flows', async () => {
+        it("Flow: initialize automatic question -> finalize question", async function () {
             const questionId = ethers.utils.formatBytes32String("question_01");
             const outcomeSlotCount = 2;
 
             const urlAr = [
-                "http://www.nba.com/api",
-                "http://www.bet365.com/api",
-                "http://www.random.com/api",
+                MockApiUrl.API1_1,
+                MockApiUrl.API2_1,
+                MockApiUrl.API3_0
             ];
 
             const postprocessJqAr = [
-                "",
-                "",
-                "",
+                '{ "outcomeIdx": .result }',
+                '{ "outcomeIdx": .result }',
+                '{ "outcomeIdx": .result }',
             ]
 
             const consensusPercent = 59;
@@ -79,8 +85,8 @@ describe("IgniteOracle", function () {
                 automaticResolution
             );
 
-            await ethers.provider.send("evm_increaseTime", [50]);
-            curDate += 100;
+            // Advance time past both endTime and resolutionTime
+            await advanceTimeAndBlock(150);
 
             // Finalize question
             const proofs = createProofList(
@@ -96,27 +102,26 @@ describe("IgniteOracle", function () {
                 proofs,
                 true
             );
-
-            const receipt = await tx.wait();
+            await tx.wait();
 
             const qData = await ORACLE.question(questionId);
             expect(qData.status).to.equal(STATUS_FINALIZED);
         });
 
-        it("flow: Initialize automatic question -> finalize (without consensus) -> then vote", async function () {
+        it("Flow: Initialize automatic question -> finalize (without consensus) -> then vote", async function () {
             const questionId = ethers.utils.formatBytes32String("question_01");
             const outcomeSlotCount = 2;
 
             const urlAr = [
-                "http://www.nba.com/api",
-                "http://www.bet365.com/api",
-                "http://www.random.com/api",
+                MockApiUrl.API1_1,
+                MockApiUrl.API2_1,
+                MockApiUrl.API3_0
             ];
 
             const postprocessJqAr = [
-                "",
-                "",
-                "",
+                '{ "outcomeIdx": .result }',
+                '{ "outcomeIdx": .result }',
+                '{ "outcomeIdx": .result }',
             ]
 
             const consensusPercent = 90;
@@ -135,8 +140,8 @@ describe("IgniteOracle", function () {
                 automaticResolution
             );
 
-            await ethers.provider.send("evm_increaseTime", [100]);
-            curDate += 100;
+            // Advance time past both endTime and resolutionTime
+            await advanceTimeAndBlock(150);
 
             // Finalize question
             const proofs = createProofList(
@@ -169,10 +174,9 @@ describe("IgniteOracle", function () {
             // voter 3
             await ORACLE.connect(voter3).vote(questionId, 0);
             expect((await ORACLE.question(questionId)).status).to.equal(STATUS_FINALIZED);
-
         });
 
-        it("flow: Initialize manual question -> finalize -> then vote", async function () {
+        it("Flow: Initialize manual question -> finalize -> then vote", async function () {
             const questionId = ethers.utils.formatBytes32String("question_01");
             const outcomeSlotCount = 2;
 
@@ -192,9 +196,8 @@ describe("IgniteOracle", function () {
                 automaticResolution
             );
 
-            await ethers.provider.send("evm_increaseTime", [100]);
-            curDate += 100;
-
+            // Advance time past both endTime and resolutionTime
+            await advanceTimeAndBlock(150);
 
             await ORACLE.finalizeQuestion(
                 questionId,
@@ -406,16 +409,16 @@ describe("IgniteOracle", function () {
         context('with automatic resolution', async () => {
             it('should not initialize question if API sources arrays do not match', async () => {
                 const urlAr = [
-                    "http://www.nba.com/api",
-                    "http://www.bet365.com/api",
-                    "http://www.random.com/api",
+                    MockApiUrl.API1_1,
+                    MockApiUrl.API2_1,
+                    MockApiUrl.API3_0
                 ];
-            
+    
                 const postprocessJqAr = [
-                    "",
-                    "",
+                    '{ "outcomeIdx": .result }',
+                    '{ "outcomeIdx": .result }',
                 ]
-        
+
                 await expect(
                     ORACLE.initializeQuestion(
                         questionId,
@@ -432,13 +435,13 @@ describe("IgniteOracle", function () {
 
             it('should not initialize question if API sources array is of invalid length (at least 3 API sources)', async () => {
                 const urlAr = [
-                    "http://www.nba.com/api",
-                    "http://www.bet365.com/api",
+                    MockApiUrl.API1_1,
+                    MockApiUrl.API2_1,
                 ];
-            
+    
                 const postprocessJqAr = [
-                    "",
-                    "",
+                    '{ "outcomeIdx": .result }',
+                    '{ "outcomeIdx": .result }',
                 ]
         
                 await expect(
@@ -456,16 +459,16 @@ describe("IgniteOracle", function () {
             });
 
             it('should not initialize question if API sources are duplicated', async () => {
-                const urlAr = [
-                    "http://www.nba.com/api",
-                    "http://www.nba.com/api",
-                    "http://www.nba.com/api",
+               const urlAr = [
+                    MockApiUrl.API1_1,
+                    MockApiUrl.API1_1,
+                    MockApiUrl.API1_1
                 ];
-            
+    
                 const postprocessJqAr = [
-                    "",
-                    "",
-                    "",
+                    '{ "outcomeIdx": .result }',
+                    '{ "outcomeIdx": .result }',
+                    '{ "outcomeIdx": .result }',
                 ]
         
                 await expect(
@@ -489,15 +492,15 @@ describe("IgniteOracle", function () {
                 const resolutionTime = curDate + 100;
 
                 const urlAr = [
-                    "http://www.nba.com/api",
-                    "http://www.bet365.com/api",
-                    "http://www.random.com/api",
+                    MockApiUrl.API1_1,
+                    MockApiUrl.API2_1,
+                    MockApiUrl.API3_0
                 ];
-            
+    
                 const postprocessJqAr = [
-                    "",
-                    "",
-                    "",
+                    '{ "outcomeIdx": .result }',
+                    '{ "outcomeIdx": .result }',
+                    '{ "outcomeIdx": .result }',
                 ]
                 
                 const tx = await ORACLE.initializeQuestion(
@@ -626,16 +629,17 @@ describe("IgniteOracle", function () {
 
         context('with automatic resolution', async () => {
             const urlAr = [
-                "http://www.nba.com/api",
-                "http://www.bet365.com/api",
-                "http://www.random.com/api",
+                MockApiUrl.API1_1,
+                MockApiUrl.API2_1,
+                MockApiUrl.API3_0
             ];
-    
+
             const postprocessJqAr = [
-                "",
-                "",
-                "",
+                '{ "outcomeIdx": .result }',
+                '{ "outcomeIdx": .result }',
+                '{ "outcomeIdx": .result }',
             ]
+
 
             beforeEach(async () => {
                 await ORACLE.initializeQuestion(
@@ -739,11 +743,11 @@ describe("IgniteOracle", function () {
             it('should finalize automatic resolution question and go to voting phase when consensus is not met', async () => {    
                 const newQuestionId = ethers.utils.formatBytes32String("question_02");
                 const newUrlAr = [
-                    "http://www.nba.com/api/new",
-                    "http://www.bet365.com/api/new",
-                    "http://www.random.com/api/new",
+                    MockApiUrl.API1_1,
+                    MockApiUrl.API2_1,
+                    MockApiUrl.API3_0
                 ];
-
+    
                 await ORACLE.initializeQuestion(
                     newQuestionId,
                     outcomeSlotCount,
@@ -832,15 +836,15 @@ describe("IgniteOracle", function () {
         const automaticResolution = true;
 
         const urlAr = [
-            "http://www.nba.com/api",
-            "http://www.bet365.com/api",
-            "http://www.random.com/api",
+            MockApiUrl.API1_1,
+            MockApiUrl.API2_1,
+            MockApiUrl.API3_0
         ];
 
         const postprocessJqAr = [
-            "",
-            "",
-            "",
+            '{ "outcomeIdx": .result }',
+            '{ "outcomeIdx": .result }',
+            '{ "outcomeIdx": .result }',
         ]
 
         beforeEach(async ()=> {

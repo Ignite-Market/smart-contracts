@@ -19,8 +19,8 @@ describe('FixedProductMarketMakerAmounts', function() {
     let fixedProductMarketMakerFactory;
     let positionIds;
     let fixedProductMarketMaker;
-    const feeFactor = ethers.utils.parseEther("0.01"); // 1%
-    const treasuryPercent = 100; // 1%
+    const feeFactor = ethers.utils.parseEther("0.02"); // 2%
+    const treasuryPercent = 1000; // 10%
     const fundingThreshold = ethers.utils.parseUnits("100", 6); // 100 USDC
     let marketMakerPool;
     const winningIndex = 0; // Always the same winning index
@@ -30,7 +30,7 @@ describe('FixedProductMarketMakerAmounts', function() {
     let endTime;
 
     before(async function() {
-        await hre.network.provider.send("hardhat_reset");
+        await hre.network.provider.send("hardhat_reset", [{ forking: { jsonRpcUrl: hre.config.networks.hardhat.forking.url } }]);
     });
 
     beforeEach(async () => {
@@ -45,10 +45,12 @@ describe('FixedProductMarketMakerAmounts', function() {
         const ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
         const WETH9 = await ethers.getContractFactory("MockCoin");
         const FixedProductMarketMakerFactory = await ethers.getContractFactory("FixedProductMarketMakerFactory");
-
-        conditionalTokens = await ConditionalTokens.deploy();
-        collateralToken = await WETH9.deploy();
         fixedProductMarketMakerFactory = await FixedProductMarketMakerFactory.deploy();
+        await fixedProductMarketMakerFactory.deployed();
+
+        conditionalTokens = await ConditionalTokens.deploy(fixedProductMarketMakerFactory.address);
+        await conditionalTokens.setOracle(oracle.address, true);
+        collateralToken = await WETH9.deploy();
 
         positionIds = collectionIds.map(collectionId => 
             getPositionId(collateralToken.address, collectionId)
@@ -58,7 +60,7 @@ describe('FixedProductMarketMakerAmounts', function() {
     });
 
     it('add + remove funding with no trades', async function() {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,
@@ -123,6 +125,8 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding
         const addedFunds1 = ethers.utils.parseUnits("100", 6);
@@ -138,12 +142,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition
         await conditionalTokens.connect(oracle).reportPayouts(questionId, reportPayoutsAr);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
 
-        // Collateral token should still be 0
-        expect(await collateralToken.balanceOf(investor1.address)).to.equal(0);
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << winningIndex;
 
@@ -159,10 +171,16 @@ describe('FixedProductMarketMakerAmounts', function() {
         
         // Should get back the initial funding amount
         expect(await collateralToken.balanceOf(investor1.address)).to.equal(addedFunds1);
+
+        // Log fee pool information
+        const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
+        console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 
     it('add + trade + remove funding with multiple trades trades', async function() {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,
@@ -227,6 +245,8 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding
         const addedFunds1 = ethers.utils.parseUnits("1000", 6); // 1,000 USDC initial funding
@@ -290,6 +310,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         let tradeCount = 0;
         let volumeOutcome0 = ethers.BigNumber.from(0);
         let volumeOutcome1 = ethers.BigNumber.from(0);
+        let currentLiquidity = await fixedProductMarketMaker.currentLiquidity();
 
         for (const trade of tradeAmounts) {
             await collateralToken.connect(trade.user).deposit({ value: trade.amount });
@@ -299,13 +320,21 @@ describe('FixedProductMarketMakerAmounts', function() {
             const tx = await fixedProductMarketMaker.connect(trade.user).buy(trade.amount, trade.outcomeIndex, outcomeTokensToBuy);
             const receipt = await tx.wait();
             
+            // Calculate fee and update liquidity
+            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
+            const investmentAmountMinusFees = trade.amount.sub(feeAmount);
+            currentLiquidity = currentLiquidity.add(investmentAmountMinusFees);
+
+            // Verify liquidity after trade
+            const actualLiquidity = await fixedProductMarketMaker.currentLiquidity();
+            expect(actualLiquidity).to.equal(currentLiquidity);
+            
             if (trade.outcomeIndex === 0) {
                 volumeOutcome0 = volumeOutcome0.add(trade.amount);
             } else {
                 volumeOutcome1 = volumeOutcome1.add(trade.amount);
             }
 
-            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
             totalFees = totalFees.add(feeAmount);
             tradeCount++;
         }
@@ -319,9 +348,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition
         await conditionalTokens.connect(oracle).reportPayouts(questionId, reportPayoutsAr);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
+
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << winningIndex;
 
@@ -352,10 +392,12 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Log fee pool information
         const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
         console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 
     it('add + trade + remove funding with 70% outcome winning', async function() {
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,
@@ -411,7 +453,7 @@ describe('FixedProductMarketMakerAmounts', function() {
                 feeFactor,
                 treasuryPercent,
                 treasury.address,
-                fundingThreshold,
+                fundingThreshold,   
                 endTime,
                 salt
             );
@@ -420,6 +462,8 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+
+        await fixedProductMarketMaker.connect(creator).finalizeSetup();
 
         // Add funding with 50/50 split
         const addedFunds1 = ethers.utils.parseUnits("1000", 6);
@@ -465,6 +509,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         let tradeCount = 0;
         let volumeOutcome0 = ethers.BigNumber.from(0);
         let volumeOutcome1 = ethers.BigNumber.from(0);
+        let currentLiquidity = await fixedProductMarketMaker.currentLiquidity();
 
         for (const trade of tradeAmounts) {
             await collateralToken.connect(trade.user).deposit({ value: trade.amount });
@@ -474,13 +519,21 @@ describe('FixedProductMarketMakerAmounts', function() {
             const tx = await fixedProductMarketMaker.connect(trade.user).buy(trade.amount, trade.outcomeIndex, outcomeTokensToBuy);
             const receipt = await tx.wait();
             
+            // Calculate fee and update liquidity
+            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
+            const investmentAmountMinusFees = trade.amount.sub(feeAmount);
+            currentLiquidity = currentLiquidity.add(investmentAmountMinusFees);
+
+            // Verify liquidity after trade
+            const actualLiquidity = await fixedProductMarketMaker.currentLiquidity();
+            expect(actualLiquidity).to.equal(currentLiquidity);
+            
             if (trade.outcomeIndex === 0) {
                 volumeOutcome0 = volumeOutcome0.add(trade.amount);
             } else {
                 volumeOutcome1 = volumeOutcome1.add(trade.amount);
             }
 
-            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
             totalFees = totalFees.add(feeAmount);
             tradeCount++;
         }
@@ -494,9 +547,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition with outcome 1 winning
         await conditionalTokens.connect(oracle).reportPayouts(questionId, [0,1]);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
+
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << 1; // Outcome 1 is the winner
 
@@ -526,11 +590,13 @@ describe('FixedProductMarketMakerAmounts', function() {
         
         const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
         console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 
     it('add + trade + remove funding with 30% outcome winning', async function() {
         // This test is identical to the previous one, just with different resolution
-        await conditionalTokens.prepareCondition(oracle.address, questionId, numOutcomes);
+        await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, numOutcomes);
 
         const createArgs = [
             conditionalTokens.address,
@@ -595,6 +661,8 @@ describe('FixedProductMarketMakerAmounts', function() {
             "FixedProductMarketMaker",
             predictedAddress
         );
+    
+        await fixedProductMarketMaker.connect(creator).finalizeSetup(); 
 
         // Add funding with 50/50 split
         const addedFunds1 = ethers.utils.parseUnits("1000", 6);
@@ -640,6 +708,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         let tradeCount = 0;
         let volumeOutcome0 = ethers.BigNumber.from(0);
         let volumeOutcome1 = ethers.BigNumber.from(0);
+        let currentLiquidity = await fixedProductMarketMaker.currentLiquidity();
 
         for (const trade of tradeAmounts) {
             await collateralToken.connect(trade.user).deposit({ value: trade.amount });
@@ -649,13 +718,21 @@ describe('FixedProductMarketMakerAmounts', function() {
             const tx = await fixedProductMarketMaker.connect(trade.user).buy(trade.amount, trade.outcomeIndex, outcomeTokensToBuy);
             const receipt = await tx.wait();
             
+            // Calculate fee and update liquidity
+            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
+            const investmentAmountMinusFees = trade.amount.sub(feeAmount);
+            currentLiquidity = currentLiquidity.add(investmentAmountMinusFees);
+
+            // Verify liquidity after trade
+            const actualLiquidity = await fixedProductMarketMaker.currentLiquidity();
+            expect(actualLiquidity).to.equal(currentLiquidity);
+            
             if (trade.outcomeIndex === 0) {
                 volumeOutcome0 = volumeOutcome0.add(trade.amount);
             } else {
                 volumeOutcome1 = volumeOutcome1.add(trade.amount);
             }
 
-            const feeAmount = trade.amount.mul(feeFactor).div(ethers.utils.parseEther("1.0"));
             totalFees = totalFees.add(feeAmount);
             tradeCount++;
         }
@@ -669,9 +746,20 @@ describe('FixedProductMarketMakerAmounts', function() {
         // Resolve condition with outcome 0 winning
         await conditionalTokens.connect(oracle).reportPayouts(questionId, [1,0]);
 
-        // Remove funding
+        // Get liquidity before removal
+        const liquidityBeforeRemoval = await fixedProductMarketMaker.currentLiquidity();
+        const totalSupply = await fixedProductMarketMaker.totalSupply();
         const sharesToRemove = await fixedProductMarketMaker.balanceOf(investor1.address);
+
+        // Calculate expected liquidity to be removed
+        const removedFunds = liquidityBeforeRemoval.mul(sharesToRemove).div(totalSupply);
+
+        // Remove funding
         await fixedProductMarketMaker.connect(investor1).removeFunding(sharesToRemove);
+
+        // Verify liquidity after removal
+        const expectedLiquidity = liquidityBeforeRemoval.sub(removedFunds);
+        expect(await fixedProductMarketMaker.currentLiquidity()).to.equal(expectedLiquidity);
 
         const indexSet = 1 << 0; // Outcome 0 is the winner
 
@@ -701,5 +789,7 @@ describe('FixedProductMarketMakerAmounts', function() {
         
         const feePoolWeight = await fixedProductMarketMaker.getFeePoolWeight();
         console.log("Remaining fee pool weight:", ethers.utils.formatUnits(feePoolWeight, 6), "USDC");
+        const treasuryBalance = await collateralToken.balanceOf(treasury.address);
+        console.log("Treasury received:", ethers.utils.formatUnits(treasuryBalance, 6), "USDC");
     });
 });

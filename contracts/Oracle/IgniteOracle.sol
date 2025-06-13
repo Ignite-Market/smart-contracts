@@ -3,8 +3,10 @@
 pragma solidity ^0.8.26;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {IJsonApi} from "./interfaces/IJsonApi.sol";
-import {IJsonApiVerification} from "./interfaces/IJsonApiVerification.sol";
+import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/flare/ContractRegistry.sol";
+import {IWeb2Json} from "@flarenetwork/flare-periphery-contracts/flare/IWeb2Json.sol";
+import {IFdcVerification} from "@flarenetwork/flare-periphery-contracts/flare/IFdcVerification.sol";
+
 
 interface IConditionalTokens {
     function prepareCondition(address oracle, bytes32 questionId, uint256 outcomeSlotCount) external;
@@ -12,7 +14,6 @@ interface IConditionalTokens {
 }
 
 contract IgniteOracle is AccessControl {
-
     /**
     * @dev Emitted when a resolution vote is cast. 
     * @param voter Voter's address.
@@ -28,13 +29,16 @@ contract IgniteOracle is AccessControl {
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
 
     IConditionalTokens public immutable conditionalTokens;
-    IJsonApiVerification public immutable verification;
 
     enum Status {
         INVALID,
         ACTIVE,
         VOTING,
         FINALIZED
+    }
+
+    struct OutcomeResponseData {
+        uint256 outcomeIdx;
     }
 
     struct Question {
@@ -63,14 +67,10 @@ contract IgniteOracle is AccessControl {
     constructor(
         address _admin,
         address _conditionalTokens,
-        address _verification,
         uint256 _minVotes
     ) {
         require(_conditionalTokens != address(0), "NA not allowed");
         conditionalTokens = IConditionalTokens(_conditionalTokens);
-
-        require(_verification != address(0), "NA not allowed");
-        verification = IJsonApiVerification(_verification);
 
         require(_minVotes >= 3, "Min votes < 3");
         minVotes = _minVotes;
@@ -81,6 +81,7 @@ contract IgniteOracle is AccessControl {
 
     /**
      * @dev Initializes question.
+     * 
      * @param questionId Question ID.
      * @param outcomeSlotCount Number of question outcomes.
      * @param urlAr Array of API sources URLs.
@@ -128,6 +129,7 @@ contract IgniteOracle is AccessControl {
             resolutionTime: resolutionTime,
             apiResolution: new uint256[](outcomeSlotCount),
             winnerIdx: type(uint256).max
+            
         });
 
         // Prepare condition on Conditional Tokens contract.
@@ -139,7 +141,7 @@ contract IgniteOracle is AccessControl {
 
             for (uint256 i = 0; i < urlAr.length; i++) {
                 jqKey = keccak256(
-                    abi.encodePacked(urlAr[i], postprocessJqAr[i])
+                    abi.encode(questionId, urlAr[i], postprocessJqAr[i])
                 );
 
                 require(jqToQuestionId[jqKey] == bytes32(0), "jqKey duplicate"); 
@@ -150,13 +152,14 @@ contract IgniteOracle is AccessControl {
 
     /**
      * @dev Finalizes question.
+     * 
      * @param questionId Question ID.
      * @param proofs Proofs array.
      * @param finalize finalize should be false only if we hit a gas limit.
      */
     function finalizeQuestion(
         bytes32 questionId, 
-        IJsonApi.Proof[] calldata proofs,
+        IWeb2Json.Proof[] calldata proofs,
         bool finalize
     ) external {
         Question storage qData = question[questionId];
@@ -170,15 +173,18 @@ contract IgniteOracle is AccessControl {
             return;
         }
 
+        // Get FDC verification contract.
+        IFdcVerification fdcVerification = ContractRegistry.getFdcVerification();
+
         // Process each API result proof.
         bytes32 jqKey;
 
         for (uint256 i = 0; i < proofs.length; i++) {
-            IJsonApi.Proof memory proof = proofs[i];
+            IWeb2Json.Proof memory proof = proofs[i];
 
             // Check if proof matches with questionId.
             jqKey = keccak256(
-                abi.encodePacked(proof.data.requestBody.url, proof.data.requestBody.postprocessJq)
+                abi.encode(questionId, proof.data.requestBody.url, proof.data.requestBody.postProcessJq)
             );
             require(jqToQuestionId[jqKey] == questionId, "Proof for invalid questionId");
 
@@ -188,18 +194,16 @@ contract IgniteOracle is AccessControl {
 
             // Check if proof actually is valid.
             require(
-                verification.verifyJsonApi(proof),
+                fdcVerification.verifyJsonApi(proof),
                 "Invalid proof (provided)"
             );
 
             // Decode result.
-            uint256 outcomeIdx = abi.decode(proof.data.responseBody.abi_encoded_data, (uint256));
-
-            qData.apiResolution[outcomeIdx] += 1;
+            OutcomeResponseData memory outcome = abi.decode(proof.data.responseBody.abiEncodedData, (OutcomeResponseData));
+            qData.apiResolution[outcome.outcomeIdx] += 1;
         }
 
         if (finalize) {
-
             // Find winner ID.
             uint256 winnerId = type(uint256).max;
             uint256 jqProcessedCount;
@@ -300,5 +304,24 @@ contract IgniteOracle is AccessControl {
             noOfVoters -= 1;
         }
         _revokeRole(role, account);
+    }
+
+    /**
+     * Override renounce role, to keep track of total number of voters
+     * 
+     * @dev Renounces a role from an account.
+     * @param role Role.
+     * @param callerConfirmation callerConfirmation.
+     */
+    function renounceRole(bytes32 role, address callerConfirmation) public override {
+        if (callerConfirmation != _msgSender()) {
+            revert AccessControlBadConfirmation();
+        }
+
+        if(role == VOTER_ROLE && hasRole(VOTER_ROLE, callerConfirmation)) {
+            noOfVoters -= 1;
+        }
+
+        _revokeRole(role, callerConfirmation);
     }
 }

@@ -21,16 +21,18 @@ describe("ConditionalTokens", function() {
   let minter, oracle, notOracle, eoaTrader, fwdExecutor, counterparty;
 
   before(async () => {
-    await hre.network.provider.send("hardhat_reset");
+    await hre.network.provider.send("hardhat_reset", [{ forking: { jsonRpcUrl: hre.config.networks.hardhat.forking.url } }]);
   });
 
   beforeEach(async function() {
     [minter, oracle, notOracle, eoaTrader, fwdExecutor, counterparty] = await ethers.getSigners();
 
-    // ConditionalTokens = await ethers.getContractFactory("contracts/ConditionalTokens/ConditionalTokens.sol:ConditionalTokens");
     ConditionalTokens = await ethers.getContractFactory("ConditionalTokens");
-    conditionalTokens = await ConditionalTokens.deploy();
+    conditionalTokens = await ConditionalTokens.deploy("0x0000000000000000000000000000000000000000");
     await conditionalTokens.deployed();
+
+    await conditionalTokens.setOracle(oracle.address, true);
+    await conditionalTokens.setMarketMaker(eoaTrader.address, true);
 
     ERC20Mintable = await ethers.getContractFactory("contracts/Test/MockCoin.sol:MockCoin");
     collateralToken = await ERC20Mintable.deploy();
@@ -41,26 +43,25 @@ describe("ConditionalTokens", function() {
     await forwarder.deployed();
   });
 
-  describe("DUMMY-TESTING", function() {
-    it("some random test", async function() {
+  describe("prepareCondition", function() {
+    it("should not be able to prepare a condition with no oracle", async function() {
       const questionId = ethers.utils.randomBytes(32);
       const outcomeSlotCount = 2;
-
-      await conditionalTokens.prepareCondition(
-        oracle.address,
-        questionId,
-        outcomeSlotCount
-      )
+      await expect(
+        conditionalTokens.connect(notOracle).prepareCondition(
+          oracle.address,
+          questionId,
+          outcomeSlotCount
+        )
+      ).to.be.revertedWith("not an oracle");
     });
-  });
 
-  describe("prepareCondition", function() {
     it("should not be able to prepare a condition with no outcome slots", async function() {
       const questionId = ethers.utils.randomBytes(32);
       const outcomeSlotCount = 0;
 
       await expect(
-        conditionalTokens.prepareCondition(
+        conditionalTokens.connect(oracle).prepareCondition(
           oracle.address,
           questionId,
           outcomeSlotCount
@@ -73,7 +74,7 @@ describe("ConditionalTokens", function() {
       const outcomeSlotCount = 1;
 
       await expect(
-        conditionalTokens.prepareCondition(
+        conditionalTokens.connect(oracle).prepareCondition(
           oracle.address,
           questionId,
           outcomeSlotCount
@@ -93,7 +94,7 @@ describe("ConditionalTokens", function() {
 
       it("should emit a ConditionPreparation event", async function() {
         await expect(
-          conditionalTokens.prepareCondition(
+          conditionalTokens.connect(oracle).prepareCondition(
             oracle.address,
             questionId,
             outcomeSlotCount
@@ -104,7 +105,7 @@ describe("ConditionalTokens", function() {
       });
 
       it("should make outcome slot count available via getOutcomeSlotCount", async function() {
-        await conditionalTokens.prepareCondition(
+        await conditionalTokens.connect(oracle).prepareCondition(
           oracle.address,
           questionId,
           outcomeSlotCount
@@ -115,7 +116,7 @@ describe("ConditionalTokens", function() {
       });
 
       it("should leave payout denominator unset", async function() {
-        await conditionalTokens.prepareCondition(
+        await conditionalTokens.connect(oracle).prepareCondition(
           oracle.address,
           questionId,
           outcomeSlotCount
@@ -126,14 +127,14 @@ describe("ConditionalTokens", function() {
       });
 
       it("should not be able to prepare the same condition more than once", async function() {
-        await conditionalTokens.prepareCondition(
+        await conditionalTokens.connect(oracle).prepareCondition(
           oracle.address,
           questionId,
           outcomeSlotCount
         );
 
         await expect(
-          conditionalTokens.prepareCondition(
+          conditionalTokens.connect(oracle).prepareCondition(
             oracle.address,
             questionId,
             outcomeSlotCount
@@ -246,7 +247,7 @@ describe("ConditionalTokens", function() {
 
         context("with a condition prepared", function() {
           beforeEach(async function() {
-            await conditionalTokens.prepareCondition(oracle.address, questionId, outcomeSlotCount);
+            await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, outcomeSlotCount);
           });
 
           it("should not split if partitions aren't disjoint", async function() {
@@ -558,21 +559,21 @@ describe("ConditionalTokens", function() {
           beforeEach(async function() {
             conditions = Array.from({ length: 3 }, () => ({
               id: null,
-              oracle: oracle.address,
+              oracle: oracle,
               questionId: randomHex(32),
               outcomeSlotCount: ethers.BigNumber.from(4)
             }));
 
             conditions.forEach(condition => {
               condition.id = getConditionId(
-                condition.oracle,
+                condition.oracle.address,
                 condition.questionId,
                 condition.outcomeSlotCount
               );
             });
 
             for (const { oracle, questionId, outcomeSlotCount } of conditions) {
-              await conditionalTokens.prepareCondition(oracle, questionId, outcomeSlotCount);
+              await conditionalTokens.connect(oracle).prepareCondition(oracle.address, questionId, outcomeSlotCount);
             }
           });
     

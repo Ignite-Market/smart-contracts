@@ -10,7 +10,6 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-
 library CeilDiv {
     function ceildiv(uint x, uint y) internal pure returns (uint) {
         if(x > 0) return ((x - 1) / y) + 1;
@@ -36,52 +35,152 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
     uint public endTime;
     uint public constant percentUL = 10000;
 
-    uint[] outcomeSlotCounts;
-    bytes32[][] collectionIds;
+    uint[] public outcomeSlotCounts;
+    bytes32[][] public collectionIds;
     uint[] public positionIds;
-    mapping(address => uint256) withdrawnFees;
+    mapping(address => uint256) public withdrawnFees;
     uint internal totalWithdrawnFees;
 
     uint public fundingAmountTotal;
+    uint public currentLiquidity;
+
+    bool public isSetupComplete;
+    address public creator;
 
     event FPMMFundingAdded(address indexed funder, uint[] amountsAdded, uint sharesMinted);
     event FPMMFundingRemoved(address indexed funder, uint[] amountsRemoved, uint collateralRemovedFromFeePool, uint sharesBurnt);
     event FPMMBuy(address indexed buyer, uint investmentAmount, uint feeAmount, uint indexed outcomeIndex, uint outcomeTokensBought);
     event FPMMSell(address indexed seller, uint returnAmount, uint feeAmount, uint indexed outcomeIndex, uint outcomeTokensSold);
 
-    function initialize(
-        string memory name,
-        string memory symbol,
+    struct SetupFrame {
+        uint remainingConditions;
+        bytes32 parentCollectionId;
+    }
+
+    SetupFrame[] private setupStack;
+    bool public isSetupStarted;
+    uint public setupStepsProcessed;
+
+    string public constant NAME = "FPMM Shares";
+    string public constant SYMBOL = "FPMM";
+
+    modifier onlyWhenSetupComplete() {
+        require(isSetupComplete, "Setup not complete");
+        _;
+    }
+
+    modifier onlyCreator() {
+        require(msg.sender == creator, "not creator");
+        _;
+    }
+
+    function initializeBase(
         ConditionalTokens _conditionalTokens,
         IERC20 _collateralToken,
-        bytes32[] memory _conditionIds,
+        bytes32[] memory conditions,
         uint _fee,
         uint _treasuryPercent,
         address _treasury,
         uint _fundingThreshold,
-        uint _endTime
+        uint _endTime,
+        address _creator
     ) external initializer {
         require(address(conditionalTokens) == address(0), "already initialized");
-        require(_treasuryPercent <= 10000, "treasury percent must be less than or equal to 10000");
+        require(_treasuryPercent <= 10000, "treasury percent must be <= 10000");
         require(_fee < ONE, "fee must be less than or equal to ONE");
-        __ERC20_init(name, symbol); // initialize ERC20 properly
+        __ERC20_init(NAME, SYMBOL); // initialize ERC20 properly
         conditionalTokens = _conditionalTokens;
         collateralToken = _collateralToken;
-        conditionIds = _conditionIds;
         fee = _fee;
         treasuryPercent = _treasuryPercent;
         treasury = _treasury;
         fundingThreshold = _fundingThreshold;
         endTime = _endTime;
+        creator = _creator;
 
-        outcomeSlotCounts = new uint[](_conditionIds.length);
-        for (uint i = 0; i < _conditionIds.length; i++) {
-            uint count = _conditionalTokens.getOutcomeSlotCount(_conditionIds[i]);
-            outcomeSlotCounts[i] = count;
+        for (uint i = 0; i < conditions.length; i++) {
+            uint count = conditionalTokens.getOutcomeSlotCount(conditions[i]);
+            conditionIds.push(conditions[i]);
+            outcomeSlotCounts.push(count);
+        }
+    }
+
+    function finalizeSetup() external onlyCreator {
+        require(!isSetupComplete, "Already finalized");
+        require(!isSetupStarted, "Setup already started");
+        require(conditionIds.length > 0, "No conditions added");
+
+        collectionIds = new bytes32[][](conditionIds.length);
+
+        // Start setup
+        isSetupStarted = true;
+
+        // Push initial frame
+        setupStack.push(SetupFrame({
+            remainingConditions: conditionIds.length,
+            parentCollectionId: bytes32(0)
+        }));
+
+        // Run first batch of steps
+        _processSetupSteps(40);
+    }
+
+    function stepFinalizeSetup(uint steps) external onlyCreator {
+        require(isSetupStarted, "Setup not started");
+        require(!isSetupComplete, "Setup already finalized");
+
+        _processSetupSteps(steps);
+    }
+
+    function _processSetupSteps(uint maxSteps) internal {
+        uint steps = 0;
+
+        while (setupStack.length > 0 && steps < maxSteps) {
+            SetupFrame memory frame = setupStack[setupStack.length - 1];
+            setupStack.pop();
+
+            if (frame.remainingConditions == 0) {
+                uint positionId = CTHelpers.getPositionId(collateralToken, frame.parentCollectionId);
+                positionIds.push(positionId);
+            } else {
+                uint idx = frame.remainingConditions - 1;
+                uint outcomeSlotCount = outcomeSlotCounts[idx];
+
+                // Only add the parent collection ID if it's not already in the array
+                bool exists = false;
+                for (uint j = 0; j < collectionIds[idx].length; j++) {
+                    if (collectionIds[idx][j] == frame.parentCollectionId) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists) {
+                    collectionIds[idx].push(frame.parentCollectionId);
+                }
+
+                for (uint i = 0; i < outcomeSlotCount; i++) {
+                    bytes32 newCollectionId = CTHelpers.getCollectionId(
+                        frame.parentCollectionId,
+                        conditionIds[idx],
+                        1 << i
+                    );
+
+                    setupStack.push(SetupFrame({
+                        remainingConditions: idx,
+                        parentCollectionId: newCollectionId
+                    }));
+                }
+            }
+
+            steps++;
         }
 
-        collectionIds = new bytes32[][](_conditionIds.length);
-        _recordCollectionIDsForAllConditions(_conditionIds.length, bytes32(0));
+        setupStepsProcessed += steps;
+
+        if (setupStack.length == 0) {
+            isSetupComplete = true;
+            isSetupStarted = false;
+        }
     }
 
     function _recordCollectionIDsForAllConditions(uint conditionsLeft, bytes32 parentCollectionId) internal {
@@ -142,7 +241,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         }
     }
 
-    function addFunding(uint addedFunds, uint[] calldata distributionHint) external nonReentrant() {
+    function addFunding(uint addedFunds, uint[] calldata distributionHint) external nonReentrant onlyWhenSetupComplete {
         require(addedFunds > 0, "funding must be non-zero");
 
         uint[] memory sendBackAmounts = new uint[](positionIds.length);
@@ -195,10 +294,11 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         }
 
         fundingAmountTotal += addedFunds;
+        currentLiquidity += addedFunds;
         emit FPMMFundingAdded(msg.sender, sendBackAmounts, mintAmount);
     }
 
-    function removeFunding(uint sharesToBurn) external nonReentrant() {
+    function removeFunding(uint sharesToBurn) external nonReentrant onlyWhenSetupComplete {
         for(uint i = 0; i < conditionIds.length; i++) {
             require(conditionalTokens.payoutDenominator(conditionIds[i]) > 0, "cannot remove funding before condition is resolved");
         }
@@ -216,12 +316,16 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         collateralRemovedFromFeePool = collateralRemovedFromFeePool - collateralToken.balanceOf(address(this));
 
         conditionalTokens.safeBatchTransferFrom(address(this), msg.sender, positionIds, sendAmounts, "");
+
+        uint256 removedFunds = (currentLiquidity * sharesToBurn) / poolShareSupply;
+        currentLiquidity -= removedFunds;
+
         emit FPMMFundingRemoved(msg.sender, sendAmounts, collateralRemovedFromFeePool, sharesToBurn);
     }
 
-    function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external nonReentrant() {
+    function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external nonReentrant onlyWhenSetupComplete {
         require(canTrade(), "trading not allowed");
-        require((investmentAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
+        require((investmentAmount * 100) / currentLiquidity <= 10, "amount can be up to 10% of currentLiquidity");
 
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
@@ -235,12 +339,14 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         splitPositionThroughAllConditions(investmentAmountMinusFees);
 
         conditionalTokens.safeTransferFrom(address(this), msg.sender, positionIds[outcomeIndex], outcomeTokensToBuy, "");
+
+        currentLiquidity += investmentAmountMinusFees;
         emit FPMMBuy(msg.sender, investmentAmount, feeAmount, outcomeIndex, outcomeTokensToBuy);
     }
 
-    function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external nonReentrant() {
+    function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external nonReentrant onlyWhenSetupComplete {
         require(canTrade(), "trading not allowed");
-        require((returnAmount * 100) / fundingAmountTotal <= 10, "amount can be up to 10% of fundingAmountTotal");
+        require((returnAmount * 100) / currentLiquidity <= 10, "amount can be up to 10% of currentLiquidity");
 
         uint outcomeTokensToSell = calcSellAmount(returnAmount, outcomeIndex);
         require(outcomeTokensToSell <= maxOutcomeTokensToSell, "maximum sell amount exceeded");
@@ -253,6 +359,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         mergePositionsThroughAllConditions(returnAmountPlusFees);
         collateralToken.safeTransfer(msg.sender, returnAmount);
 
+        currentLiquidity -= returnAmount;
         emit FPMMSell(msg.sender, returnAmount, feeAmount, outcomeIndex, outcomeTokensToSell);
     }
 
@@ -275,7 +382,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         return buyTokenPoolBalance + investmentAmountMinusFees - endingOutcomeBalance / ONE;
     }
 
-    function withdrawFees(address account) public {
+    function withdrawFees(address account) public onlyWhenSetupComplete {
         uint256 rawAmount = feePoolWeight * balanceOf(account) / totalSupply();
         uint256 pendingAmount = rawAmount - withdrawnFees[account];
 
@@ -322,8 +429,12 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         return returnAmountPlusFees + endingOutcomeBalance / ONE - sellTokenPoolBalance;
     }
 
+    function isFunded() public view returns (bool) {
+        return fundingAmountTotal >= fundingThreshold;
+    }
+
     function canTrade() public view returns (bool) {
-        return fundingAmountTotal >= fundingThreshold && block.timestamp < endTime;
+        return isSetupComplete && fundingAmountTotal >= fundingThreshold && block.timestamp < endTime;
     }
 
     function _update(address from, address to, uint256 amount) internal virtual override {
@@ -358,7 +469,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         uint256 value,
         bytes calldata data
     ) external override returns(bytes4) {
-        return this.onERC1155Received.selector;
+         if (operator == address(this)) {
+            return this.onERC1155Received.selector;
+        }
+        return 0x0;
     }
 
     function onERC1155BatchReceived(
@@ -368,7 +482,10 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         uint256[] calldata values,
         bytes calldata data
     ) external override returns(bytes4) {
-        return this.onERC1155BatchReceived.selector;
+        if (operator == address(this) && from == address(0)) {
+            return this.onERC1155BatchReceived.selector;
+        }
+        return 0x0;
     }
 
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {

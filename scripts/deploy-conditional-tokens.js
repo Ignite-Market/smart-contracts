@@ -5,18 +5,19 @@ async function main() {
 
   const ContractF = await hre.ethers.getContractFactory("ConditionalTokens");
 
-  const args = []
+  const args = [
+    '0x520ba2749A4091D540F617EDc8A279411E286f4B' // FPMM factory address
+  ]
 
   const contr = await ContractF.deploy(
     ...args
   );
 
-
   await contr.deployed();
 
   console.log(
     "ConditionalTokens deployed to: %saddress/%s",
-    hre.network.config.explorer,
+    hre.network.config.explorer || "",
     contr.address
   );
 }

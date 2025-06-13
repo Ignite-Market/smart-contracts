@@ -84,4 +84,4 @@ After FPMM Factory is deployed you need to verify the FPMM implementation after 
 | ------------------------------ | ------------------------------------------ |
 | FixedProductMarketMakerFactory | 0xb34E77779180D3cF0f2B3e2ac7dbc450f3BAdA9b |
 | ConditionalTokens              | 0xB909Aa0d217C524d6F8151dE15456104677E9287 |
-| IgniteOracle                   | 0x6E09F99aaE2a5896f315292c369821D3aEB6c160 |
+| IgniteOracle                   | 0x6E09F99aaE2a5896f315292c369821D3aEB6c160 |

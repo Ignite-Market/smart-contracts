@@ -15,7 +15,7 @@ async function main() {
   await contr.deployed();
 
   console.log(
-    "FixedProductMarketMakerFactory deployed to: %saddress/%s",
+    "FixedProductMarketMaker deployed to: %saddress/%s",
     hre.network.config.explorer,
     contr.address
   );

@@ -80,8 +80,8 @@ After the CT are deployed you need to set Oracle via `setOracle`.
 After FPMM Factory is deployed you need to verify the FPMM implementation after the first FPMM is deployed (https://eips.ethereum.org/EIPS/eip-1167).
 
 ## Coston2 deployment:
-FixedProductMarketMakerFactory: 0x520ba2749A4091D540F617EDc8A279411E286f4B
-ConditionalTokens: 0x1f75110bF2C2494542cc26469BEe169bC4e6fA4f
-IgniteOracle: 0xe97598CdFFd75efC698b7483a88612cf2570E72c
-
-
+| Contract name                  | Contract address                           |
+| ------------------------------ | ------------------------------------------ |
+| FixedProductMarketMakerFactory | 0xb34E77779180D3cF0f2B3e2ac7dbc450f3BAdA9b |
+| ConditionalTokens              | 0xB909Aa0d217C524d6F8151dE15456104677E9287 |
+| IgniteOracle                   | 0x6E09F99aaE2a5896f315292c369821D3aEB6c160 |

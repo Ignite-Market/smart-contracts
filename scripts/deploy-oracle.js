@@ -7,7 +7,7 @@ async function main() {
 
   const args = [
     '0x5f2B7077a7e5B4fdD97cBb56D9aD02a4f326896d', // 0x5f2B7077a7e5B4fdD97cBb56D9aD02a4f326896d stg admin - Deployer address
-    '0x1f75110bF2C2494542cc26469BEe169bC4e6fA4f', // conditionalTokens address
+    '0xB909Aa0d217C524d6F8151dE15456104677E9287', // conditionalTokens address
     3, // minVotes
   ]
 

@@ -324,4 +324,28 @@ contract IgniteOracle is AccessControl {
 
         _revokeRole(role, callerConfirmation);
     }
+
+    /**
+     * @dev Allows the admin to manually move a question from ACTIVE to VOTING phase.
+     *
+     * Requirements:
+     *  - Caller must have DEFAULT_ADMIN_ROLE.
+     *  - Question status must be ACTIVE.
+     *  - Question endTime must be reached.
+     *  - Question resolutionTime must be reached.
+     *
+     * This function is useful as a manual fail-safe when automatic resolution
+     * could not be completed for any reason (e.g. missing proofs, gas limits).
+     *
+     * @param questionId Question ID.
+     */
+    function forceVoting(bytes32 questionId) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        Question storage qData = question[questionId];
+
+        require(qData.status == Status.ACTIVE, "Cannot force voting, status != ACTIVE");
+        require(qData.endTime <= block.timestamp, "End time not reached");
+        require(qData.resolutionTime <= block.timestamp, "Resolution time not reached");
+
+        qData.status = Status.VOTING;
+    }
 }

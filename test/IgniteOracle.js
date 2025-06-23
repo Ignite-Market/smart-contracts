@@ -923,4 +923,92 @@ describe("IgniteOracle", function () {
             });
         });
     });
+
+    describe.only("Question force voting on automatic resolution", async () => {
+        const questionId = ethers.utils.formatBytes32String("question_01");
+        const outcomeSlotCount = 2;
+        const automaticResolution = true;
+
+        const urlAr = [
+            MockApiUrl.API1_1,
+            MockApiUrl.API2_1,
+            MockApiUrl.API3_0
+        ];
+
+        const postprocessJqAr = [
+            '{ "outcomeIdx": .result }',
+            '{ "outcomeIdx": .result }',
+            '{ "outcomeIdx": .result }',
+        ]
+
+        beforeEach(async ()=> {
+            await ethers.provider.send("evm_increaseTime", [1]);
+            await ethers.provider.send("evm_mine");
+            
+            const latestBlock = await ethers.provider.getBlock('latest');
+            curDate = latestBlock.timestamp;
+
+            await ORACLE.initializeQuestion(
+                questionId,
+                outcomeSlotCount,
+                urlAr,
+                postprocessJqAr,
+                90,
+                curDate + 50,
+                curDate + 100,
+                automaticResolution
+            );
+        });
+
+
+        context('force vote without admin role and without the correct VOTING status', () => {
+            it('should not force voting if not admin', async () => {
+                await expect(ORACLE.connect(voter1).forceVoting(questionId)).to.be.reverted;
+            });
+
+            it('should not vote if without voter role', async () => {
+                await expect(ORACLE.connect(noRoleVoter).vote(questionId, 0)).to.be.reverted;
+            });
+
+            it('should not vote if not in correct status', async () => {
+                await expect(ORACLE.connect(voter1).vote(questionId, 0)).to.be.revertedWith('Cannot vote, status != VOTING')
+            });
+        });
+
+        context('force vote with admin role and the correct ADMIN role', async() => {
+            beforeEach(async() => {
+                await ethers.provider.send("evm_increaseTime", [100]);
+                curDate += 100;
+
+                // Admin calls force voting.
+                await ORACLE.connect(owner).forceVoting(questionId);
+            });
+
+            it('should not vote if without voter role', async () => {
+                await expect(ORACLE.connect(noRoleVoter).vote(questionId, 0)).to.be.reverted;
+            });
+
+            it('should not vote if already voted', async () => {
+                await ORACLE.connect(voter1).vote(questionId, 0);
+                await expect(ORACLE.connect(voter1).vote(questionId, 0)).to.be.revertedWith('Already voted')
+            });
+
+            it('should not vote with invalid outcome index', async () => {
+                await expect(ORACLE.connect(voter1).vote(questionId, 3)).to.be.revertedWith('Invalid outcomeIdx')
+            });
+
+            it('should cast valid vote and emit VoteSubmitted event', async () => {
+                const outcomeIndex = 0;
+
+                const tx = await ORACLE.connect(voter1).vote(questionId, outcomeIndex);
+                await expect(tx)
+                    .to.emit(ORACLE, "VoteSubmitted")
+                    .withArgs(
+                        voter1.address,
+                        questionId,
+                        outcomeIndex
+                    );
+            });
+        });
+    });
 });

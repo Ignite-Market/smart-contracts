@@ -7,7 +7,7 @@ async function main() {
 
   const args = [
     '0x5f2B7077a7e5B4fdD97cBb56D9aD02a4f326896d', // 0x5f2B7077a7e5B4fdD97cBb56D9aD02a4f326896d stg admin - Deployer address
-    '0xB909Aa0d217C524d6F8151dE15456104677E9287', // conditionalTokens address
+    '0x55613b6ECeb4b6e83C2398c425b62187f0A758a9', // conditionalTokens address
     3, // minVotes
   ]
 
@@ -31,6 +31,5 @@ main()
     console.error(error);
     process.exit(1);
   });
-
 
   

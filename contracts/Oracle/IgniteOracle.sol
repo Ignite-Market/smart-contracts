@@ -26,6 +26,16 @@ contract IgniteOracle is AccessControl {
         uint256 outcomeIdx
     );
 
+    /**
+     * @dev Emitted when the admin manually moves a question to the VOTING phase via forceVoting.
+     * @param admin Address of the admin that invoked forceVoting.
+     * @param questionId Question ID.
+     */
+    event VotingForced(
+        address indexed admin,
+        bytes32 indexed questionId
+    );
+
     bytes32 public constant VOTER_ROLE = keccak256("VOTER_ROLE");
 
     IConditionalTokens public immutable conditionalTokens;
@@ -347,5 +357,7 @@ contract IgniteOracle is AccessControl {
         require(qData.resolutionTime <= block.timestamp, "Resolution time not reached");
 
         qData.status = Status.VOTING;
+
+        emit VotingForced(msg.sender, questionId);
     }
 }

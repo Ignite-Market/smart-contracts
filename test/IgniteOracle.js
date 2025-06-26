@@ -924,7 +924,7 @@ describe("IgniteOracle", function () {
         });
     });
 
-    describe.only("Question force voting on automatic resolution", async () => {
+    describe("Question force voting on automatic resolution", async () => {
         const questionId = ethers.utils.formatBytes32String("question_01");
         const outcomeSlotCount = 2;
         const automaticResolution = true;
@@ -976,12 +976,14 @@ describe("IgniteOracle", function () {
         });
 
         context('force vote with admin role and the correct ADMIN role', async() => {
+            let forceVoteTx;
+
             beforeEach(async() => {
                 await ethers.provider.send("evm_increaseTime", [100]);
                 curDate += 100;
 
                 // Admin calls force voting.
-                await ORACLE.connect(owner).forceVoting(questionId);
+                forceVoteTx = await ORACLE.connect(owner).forceVoting(questionId);
             });
 
             it('should not vote if without voter role', async () => {
@@ -1008,6 +1010,12 @@ describe("IgniteOracle", function () {
                         questionId,
                         outcomeIndex
                     );
+            });
+
+            it('should emit VotingForced event when admin forces voting', async () => {
+                await expect(forceVoteTx)
+                    .to.emit(ORACLE, "VotingForced")
+                    .withArgs(owner.address, questionId);
             });
         });
     });

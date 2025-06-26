@@ -82,6 +82,6 @@ After FPMM Factory is deployed you need to verify the FPMM implementation after 
 ## Coston2 deployment:
 | Contract name                  | Contract address                           |
 | ------------------------------ | ------------------------------------------ |
-| FixedProductMarketMakerFactory | 0x9Fd0E27c085FdbEc4F93d0a345E6a795D0615dCc |
-| ConditionalTokens              | 0x55613b6ECeb4b6e83C2398c425b62187f0A758a9 |
-| IgniteOracle                   | 0xBEF2D7A7D9F2d3E335b13A2b2bB9BfDBc1589da1 |
+| FixedProductMarketMakerFactory | 0x6bCCF9b918403D10AE8530FEcBeeBabcf57A0479 |
+| ConditionalTokens              | 0x11B0f693E37e53DB1aA7f89ab8E360deD3468F30 |
+| IgniteOracle                   | 0x320C4791A63C6b44f40010F9e54Af80fEe6F25Ce |

@@ -6,7 +6,7 @@ async function main() {
   const ContractF = await hre.ethers.getContractFactory("ConditionalTokens");
 
   const args = [
-    '0x9Fd0E27c085FdbEc4F93d0a345E6a795D0615dCc' // FPMM factory address
+    '0x6bCCF9b918403D10AE8530FEcBeeBabcf57A0479' // FPMM factory address
   ]
 
   const contr = await ContractF.deploy(

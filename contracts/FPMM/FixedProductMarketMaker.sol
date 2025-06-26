@@ -158,11 +158,12 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
                     collectionIds[idx].push(frame.parentCollectionId);
                 }
 
-                for (uint i = 0; i < outcomeSlotCount; i++) {
+                for (uint i = outcomeSlotCount; i > 0; i--) {
+                    uint index = i - 1;
                     bytes32 newCollectionId = CTHelpers.getCollectionId(
                         frame.parentCollectionId,
                         conditionIds[idx],
-                        1 << i
+                        1 << index
                     );
 
                     setupStack.push(SetupFrame({

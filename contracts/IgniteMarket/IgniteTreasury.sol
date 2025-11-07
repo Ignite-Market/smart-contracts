@@ -116,6 +116,11 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 	 * @param _owner Address of the initial owner.
 	 * @param _caller Address of the caller.
 	 * @param _stakeToken Address of the stake token - ING token.
+     * @notice ******************************************** IMPORTANT ******************************************************
+     * @notice **                                                                                                         **
+     * @notice ** The stake token must be an standard compliant ERC20 token (no fees on transfers, no balance rebasing).  **
+     * @notice **                                                                                                         **   
+     * @notice *************************************************************************************************************
 	 */
     constructor(
 		address _owner,
@@ -165,12 +170,18 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 
 	/**
 	 * @dev Add a new payout token to the treasury.
-	 *
 	 * @param payoutToken The address of the payout token to add.
+     * @notice ******************************************** IMPORTANT ******************************************************
+     * @notice **                                                                                                         **
+     * @notice ** The payout token must be an standard compliant ERC20 token (no fees on transfers, no balance rebasing). **
+     * @notice **                                                                                                         **   
+     * @notice *************************************************************************************************************
 	 */
 	function addPayoutToken(address payoutToken) external onlyOwner {
 		require(payoutToken != address(0), "NA not allowed");
+        require(payoutToken != address(stakeToken), "Stake token cannot be added as a payout token");
     	require(!isPayoutToken[payoutToken], "Payout token already exists");
+
 
     	isPayoutToken[payoutToken] = true;
     	payoutTokens.push(payoutToken);
@@ -235,6 +246,23 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
         delete payoutTokenState[payoutToken];
     }
 
+    /**
+	 * @dev Sweep inactive payout token to the owner.
+	 *
+	 * @param payoutToken The address of the payout token to sweep.
+	 * @param to The address to sweep the payout token to.
+	 */
+    function sweepInactive(address payoutToken, address to) external onlyOwner {
+        require(isPayoutToken[payoutToken], "Payout token does not exist");
+        require(payoutToken != address(stakeToken), "Cannot sweep stake token");
+
+        PayoutTokenState storage state = payoutTokenState[payoutToken];
+        require(!state.isActive, "Payout token must be inactive");
+        require(state.trackedBalance == 0 && state.ownerReward == 0, "Payout token must be fully drained");
+
+        uint256 balance = IERC20(payoutToken).balanceOf(address(this));
+        IERC20(payoutToken).safeTransfer(to, balance);
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Staking functions.
@@ -314,7 +342,7 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 		} else {
 			// Calculate the amount to distribute to the stakers and give remainder to the owner.
 			toStakers = (newlyReceived * stakersShareDistribution) / BASIS_POINTS; 
-			toOwner = newlyReceived - toStakers; // remainder
+			toOwner = newlyReceived - toStakers;
 
 			// Increase the global reward per share.
 			state.stakersRewardPerShare += (toStakers * PRECISION) / totalStaked;

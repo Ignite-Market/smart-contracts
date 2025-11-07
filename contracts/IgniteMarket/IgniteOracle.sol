@@ -117,10 +117,10 @@ contract IgniteOracle is AccessControl {
             consensusPercent >= 51 && consensusPercent <= 100,
             "consensusPercent has to be in range 51-100"
         );
-        require(endTime > block.timestamp, "endTime has to be in the future.");
+        require(endTime > block.timestamp, "endTime has to be in the future");
         require(
             resolutionTime > endTime, 
-            "Resolution time has to be later than endTime."
+            "Resolution time has to be later than endTime"
         );
 
         // If resolution is automatic require API sources.

@@ -12,7 +12,7 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Constants & Types
-	uint256 private constant PRECISION = 1e18; // Precision for decimal calculations - 1e18 precision.
+	uint256 private constant PRECISION = 1e18;    // Precision for decimal calculations - 1e18 precision.
 	uint16 public constant BASIS_POINTS = 10_000; // Basis point for percentage calculations - 100%.
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -86,27 +86,28 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Staking specific variables.
-	IERC20 public immutable stakeToken; // Address of the stake token - ING token.
-	uint256 public totalStaked; // Total staked balance.
-	mapping(address => uint256) public staked; // Staked balance of each user.
+	IERC20 public immutable stakeToken;            // Address of the stake token - ING token.
+	uint256 public totalStaked;                    // Total staked balance.
+	mapping(address => uint256) public staked;     // Staked balance of each user.
 	uint16 public stakersShareDistribution = 7000; // Stakers share distribution ratio (e.g., 7000 = 70% for stakers, 30% for the owner)
 	
     // ─────────────────────────────────────────────────────────────────────────────
     // Payout tokens specific variables.
     struct PayoutTokenState {
         uint256 stakersRewardPerShare; // Cumulative rewards per share (1e18 precision).
-        uint256 trackedBalance;    // Accounting balance of this ERC20 allocated to this contract (not yet withdrawn).
-        uint256 ownerReward;      // Amount accrued to the owner for this token (awaiting withdrawal).
+        uint256 trackedBalance;        // Accounting balance of this ERC20 allocated to this contract (not yet withdrawn).
+        uint256 ownerReward;           // Amount accrued to the owner for this token (awaiting withdrawal).
+        bool isActive;                 // Whether the payout token is active.
     }
-	address[] public payoutTokens; // Addresses of the payout tokens.
-	mapping(address => bool) public isPayoutToken; // Whether a token is a payout token.
+	address[] public payoutTokens;                                // Addresses of the payout tokens.
+	mapping(address => bool) public isPayoutToken;                // Whether a token is a payout token.
 	mapping(address => PayoutTokenState) public payoutTokenState; // State of each payout token.
 
 
     // ─────────────────────────────────────────────────────────────────────────────
     // User rewards specific variables.
     mapping(address => mapping(address => uint256)) public userBaselineRewardDebt; // Marks where the user "started" in the cumulative reward system.  When calculating rewards, we subtract this to get only rewards earned AFTER joining.
-    mapping(address => mapping(address => uint256)) public userClaimableRewards; // Rewards that have been calculated and locked in, ready to withdraw. When a user's stake changes (stake more or unstake), we update their pending rewards and lock them in.
+    mapping(address => mapping(address => uint256)) public userClaimableRewards;   // Rewards that have been calculated and locked in, ready to withdraw. When a user's stake changes (stake more or unstake), we update their pending rewards and lock them in.
 
 
 	/**
@@ -165,37 +166,75 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 	/**
 	 * @dev Add a new payout token to the treasury.
 	 *
-	 * @param token The address of the payout token to add.
+	 * @param payoutToken The address of the payout token to add.
 	 */
-	function addPayoutToken(address token) external onlyOwner {
-		require(token != address(0), "NA not allowed");
-    	require(!isPayoutToken[token], "Payout token already exists");
+	function addPayoutToken(address payoutToken) external onlyOwner {
+		require(payoutToken != address(0), "NA not allowed");
+    	require(!isPayoutToken[payoutToken], "Payout token already exists");
 
-    	isPayoutToken[token] = true;
-    	payoutTokens.push(token);
+    	isPayoutToken[payoutToken] = true;
+    	payoutTokens.push(payoutToken);
+    	payoutTokenState[payoutToken].isActive = true;
   	}
 
-	/**
+    /**
+	 * @dev Deactivate a payout token.
+	 *
+	 * @param payoutToken The address of the payout token to deactivate.
+	 */
+    function deactivatePayoutToken(address payoutToken) external onlyOwner {
+        require(isPayoutToken[payoutToken], "Payout token does not exist");
+
+        // Distribute any pending fees before deactivation.
+        divideFees(payoutToken);
+
+        // Mark token as inactive to prevent new rewards from accumulating.
+        PayoutTokenState storage state = payoutTokenState[payoutToken];
+        if (state.isActive) {
+            state.isActive = false;
+        }
+    }
+
+    /**
+	 * @dev Activate a payout token.
+	 *
+	 * @param payoutToken The address of the payout token to activate.
+	 */
+    function activatePayoutToken(address payoutToken) external onlyOwner {
+        require(isPayoutToken[payoutToken], "Payout token does not exist");
+        
+        PayoutTokenState storage state = payoutTokenState[payoutToken];
+        require(!state.isActive, "already active");
+        state.isActive = true;
+    }
+
+    /**
 	 * @dev Remove a payout token from the treasury.
 	 *
-	 * @param token The address of the payout token to remove.
+	 * @param payoutToken The address of the payout token to remove.
 	 */
-	function removePayoutToken(address token) external onlyOwner {
-		require(isPayoutToken[token], "Payout token does not exist");
+    function removePayoutToken(address payoutToken) external onlyOwner {
+        require(isPayoutToken[payoutToken], "Payout token does not exist");
+        PayoutTokenState storage state = payoutTokenState[payoutToken];
 
-		// TODO: Should the balance be 0 or should it be transferred to the owner if there is any?
-		// Maybe set tracked balance to 0 (reset whole state and the existing balance will be distributed if token is added back)
-		isPayoutToken[token] = false;
+        // Payout token must be inactive and fully and balances fully drained.
+        require(!state.isActive, "Payout token must be inactive");
+        require(state.trackedBalance == 0, "Tracked balance must be 0");
+        require(state.ownerReward == 0, "Owner reward must be 0");
+        require(IERC20(payoutToken).balanceOf(address(this)) == 0, "Untracked balance present");
 
-		uint256 len = payoutTokens.length;
-		for (uint256 i = 0; i < len; i++) {
-			if (payoutTokens[i] == token) {
-				payoutTokens[i] = payoutTokens[len - 1];
-				payoutTokens.pop();
-				break;
-			}
-		}
-	}
+        isPayoutToken[payoutToken] = false;
+        uint256 len = payoutTokens.length;
+        for (uint256 i; i < len; ++i) {
+            if (payoutTokens[i] == payoutToken) {
+                payoutTokens[i] = payoutTokens[len - 1];
+                payoutTokens.pop();
+                break;
+            }
+        }
+        delete payoutTokenState[payoutToken];
+    }
+
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Staking functions.
@@ -254,6 +293,8 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 		
 		// Get the current payout token state.
 		PayoutTokenState storage state = payoutTokenState[payoutToken];
+        if (!state.isActive) return; // Inactive token => no new distributions.
+
 
 		// Check if there are new tokens to distribute.
 		uint256 payoutTokenBalance = IERC20(payoutToken).balanceOf(address(this));
@@ -364,11 +405,13 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
         uint256 rps = state.stakersRewardPerShare;
 
         // If new fees are already on the contract (but divideFees hasn't been called yet), include them in the view.
-        uint256 feesBalance = IERC20(payoutToken).balanceOf(address(this));
-        if (feesBalance > state.trackedBalance && totalStaked > 0) {
-            uint256 newlyReceived = feesBalance - state.trackedBalance;
-            uint256 toStakers = (newlyReceived * stakersShareDistribution) / BASIS_POINTS;
-            rps += (toStakers * PRECISION) / totalStaked;
+        if (state.isActive && totalStaked > 0) {
+            uint256 feesBalance = IERC20(payoutToken).balanceOf(address(this));
+            if (feesBalance > state.trackedBalance) {
+                uint256 newlyReceived = feesBalance - state.trackedBalance;
+                uint256 toStakers = (newlyReceived * stakersShareDistribution) / BASIS_POINTS;
+                rps += (toStakers * PRECISION) / totalStaked;
+            }
         }
 
         return userClaimableRewards[user][payoutToken] + ((staked[user] * rps) / PRECISION) - userBaselineRewardDebt[user][payoutToken];

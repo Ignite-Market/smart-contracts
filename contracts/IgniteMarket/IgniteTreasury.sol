@@ -176,6 +176,13 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
      * @notice ** The payout token must be an standard compliant ERC20 token (no fees on transfers, no balance rebasing). **
      * @notice **                                                                                                         **   
      * @notice *************************************************************************************************************
+     * @notice **
+     * @notice **
+     * @notice ********************************* IMPORTANT **********************************
+     * @notice **                                                                          **
+     * @notice ** Be mindful of total number of payout tokens to prevent gas limit errors. **
+     * @notice **                                                                          **   
+     * @notice ******************************************************************************
 	 */
 	function addPayoutToken(address payoutToken) external onlyOwner {
 		require(payoutToken != address(0), "NA not allowed");
@@ -253,6 +260,7 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 	 * @param to The address to sweep the payout token to.
 	 */
     function sweepInactive(address payoutToken, address to) external onlyOwner {
+        require(to != address(0), "NA not allowed");
         require(isPayoutToken[payoutToken], "Payout token does not exist");
         require(payoutToken != address(stakeToken), "Cannot sweep stake token");
 
@@ -335,22 +343,28 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
 		// Calculate the amount to distribute to the stakers & owner.
 		uint256 toStakers;
 		uint256 toOwner;
-		if (totalStaked == 0) {
-			// If there are no stakers, credit everything to the owner.
-			toOwner = newlyReceived;
-			state.ownerReward += toOwner;
-		} else {
-			// Calculate the amount to distribute to the stakers and give remainder to the owner.
-			toStakers = (newlyReceived * stakersShareDistribution) / BASIS_POINTS; 
-			toOwner = newlyReceived - toStakers;
+        if (totalStaked == 0) {
+            // If there are no stakers, credit everything to the owner.
+            toOwner = newlyReceived;
+            state.ownerReward += toOwner;
+            state.trackedBalance += toOwner;
+        } else {
+            // Calculate the amount to distribute to the stakers and give remainder to the owner (including rounding dust).
+            toStakers = (newlyReceived * stakersShareDistribution) / BASIS_POINTS;
+            toOwner = newlyReceived - toStakers;
+
+            uint256 rpsInc = (toStakers * PRECISION) / totalStaked;
+            uint256 distributedToStakers = (rpsInc * totalStaked) / PRECISION;
+            uint256 roundingDust = toStakers - distributedToStakers;
 
 			// Increase the global reward per share.
-			state.stakersRewardPerShare += (toStakers * PRECISION) / totalStaked;
-			state.ownerReward += toOwner;
-		}
+            state.stakersRewardPerShare += rpsInc;
+            state.ownerReward += toOwner + roundingDust;
 
-		// Account that these tokens are now allocated.
-		state.trackedBalance += newlyReceived;
+            // Only the realizable amounts increase tracked balance.
+            state.trackedBalance += distributedToStakers + toOwner;
+        }
+
 		
 		emit FeesDistributed(payoutToken, newlyReceived, toStakers, toOwner);
 	}

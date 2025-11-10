@@ -6,8 +6,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract IgniteTreasury is Ownable, ReentrancyGuard {
+contract IgniteTreasury is Ownable, ReentrancyGuard, Pausable {
 	using SafeERC20 for IERC20;
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +149,20 @@ contract IgniteTreasury is Ownable, ReentrancyGuard {
   
     // ─────────────────────────────────────────────────────────────────────────────
     // Admin functions.
+    /**
+     * @dev Pause the treasury.
+     */
+	function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @dev Unpause the treasury.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
 	/**
 	 * @dev Set the caller.
 	 *

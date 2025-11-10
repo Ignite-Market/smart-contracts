@@ -482,14 +482,14 @@ describe("IgniteTreasury", function () {
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 const withdrawAmount = state.ownerReward;
                 
-                    const ownerBalanceBefore = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
-                    
-                    await expect(TREASURY.connect(owner).withdrawOwnerFees(DEFAULT_PAYOUT_TOKEN.address, owner.address, withdrawAmount))
-                        .to.emit(TREASURY, "OwnerFeesWithdrawn")
-                        .withArgs(DEFAULT_PAYOUT_TOKEN.address, withdrawAmount, owner.address);
-                    
-                    const ownerBalanceAfter = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
-                    expect(ownerBalanceAfter.sub(ownerBalanceBefore)).to.equal(withdrawAmount);
+                const ownerBalanceBefore = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
+                
+                await expect(TREASURY.connect(owner).withdrawOwnerFees(DEFAULT_PAYOUT_TOKEN.address, owner.address, withdrawAmount))
+                    .to.emit(TREASURY, "OwnerFeesWithdrawn")
+                    .withArgs(DEFAULT_PAYOUT_TOKEN.address, withdrawAmount, owner.address);
+                
+                const ownerBalanceAfter = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
+                expect(ownerBalanceAfter.sub(ownerBalanceBefore)).to.equal(withdrawAmount);
             });
 
             it("should revert when called by non-owner", async function () {

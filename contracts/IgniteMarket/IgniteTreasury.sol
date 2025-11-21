@@ -513,9 +513,9 @@ contract IgniteTreasury is Ownable, ReentrancyGuard, Pausable {
         uint256 rps = state.stakersRewardPerShare;
 
         // Calculate pending rewards earned since the user's last update.
-        uint256 pendingRewards = ((staked[user] * rps) / PRECISION) - userBaselineRewardDebt[user][payoutToken];
-        if (pendingRewards > 0) {
-            userClaimableRewards[user][payoutToken] += pendingRewards;
+        uint256 pending = ((staked[user] * rps) / PRECISION) - userBaselineRewardDebt[user][payoutToken];
+        if (pending > 0) {
+            userClaimableRewards[user][payoutToken] += pending;
         }
         
         // Update the baseline debt to the current state. This marks the new "starting point" for future reward calculations.

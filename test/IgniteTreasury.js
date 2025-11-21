@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("IgniteTreasury", function () {
-    let owner, caller, otherUser, TREASURY, DEFAULT_PAYOUT_TOKEN, ING_TOKEN, OTHER_PAYOUT_TOKEN;
+    let owner, caller, user1, user2, user3, user4, TREASURY, DEFAULT_PAYOUT_TOKEN, ING_TOKEN, OTHER_PAYOUT_TOKEN;
     let curDate = null;
 
     const ONE_WEEK = Number(60 * 60 * 24 * 7);
@@ -19,7 +19,7 @@ describe("IgniteTreasury", function () {
     });
 
     beforeEach(async () => {
-        [owner, caller, otherUser] = await ethers.getSigners();
+        [owner, caller, user1, user2, user3, user4] = await ethers.getSigners();
 
         const mockCoinFactory = await ethers.getContractFactory("MockCoin");
         DEFAULT_PAYOUT_TOKEN = await mockCoinFactory.deploy();
@@ -50,7 +50,7 @@ describe("IgniteTreasury", function () {
                 await expect(TREASURY.connect(owner).pause())
                     .to.emit(TREASURY, "Paused")
                     .withArgs(owner.address);
-                
+
                 expect(await TREASURY.paused()).to.be.true;
             });
 
@@ -75,7 +75,7 @@ describe("IgniteTreasury", function () {
                 await expect(TREASURY.connect(owner).unpause())
                     .to.emit(TREASURY, "Unpaused")
                     .withArgs(owner.address);
-                
+
                 expect(await TREASURY.paused()).to.be.false;
             });
 
@@ -93,13 +93,13 @@ describe("IgniteTreasury", function () {
 
         describe("setCaller", function () {
             it("should set caller when called by owner", async function () {
-                const newCaller = otherUser.address;
+                const newCaller = user1.address;
                 await TREASURY.connect(owner).setCaller(newCaller);
                 expect(await TREASURY.caller()).to.equal(newCaller);
             });
 
             it("should revert when called by non-owner", async function () {
-                await expect(TREASURY.connect(caller).setCaller(otherUser.address))
+                await expect(TREASURY.connect(caller).setCaller(user1.address))
                     .to.be.reverted;
             });
 
@@ -136,7 +136,7 @@ describe("IgniteTreasury", function () {
         describe("addPayoutToken", function () {
             it("should add payout token when called by owner", async function () {
                 await TREASURY.connect(owner).addPayoutToken(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 expect(await TREASURY.isPayoutToken(DEFAULT_PAYOUT_TOKEN.address)).to.be.true;
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(state.isActive).to.be.true;
@@ -171,7 +171,7 @@ describe("IgniteTreasury", function () {
 
             it("should deactivate payout token when called by owner", async function () {
                 await TREASURY.connect(owner).deactivatePayoutToken(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(state.isActive).to.be.false;
             });
@@ -191,26 +191,26 @@ describe("IgniteTreasury", function () {
                 const initialState = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 const initialTrackedBalance = initialState.trackedBalance;
                 const initialOwnerReward = initialState.ownerReward;
-                
+
                 // Add some tokens to the treasury.
                 const tokenAmount = ethers.utils.parseUnits("100", 6);
                 await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, tokenAmount);
-                
+
                 // Verify tokens were added but not yet distributed.
                 const balanceAfterMint = await DEFAULT_PAYOUT_TOKEN.balanceOf(TREASURY.address);
                 expect(balanceAfterMint).to.equal(tokenAmount);
-                
+
                 const stateBeforeDeactivate = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(stateBeforeDeactivate.trackedBalance).to.equal(initialTrackedBalance);
                 expect(stateBeforeDeactivate.ownerReward).to.equal(initialOwnerReward);
-                
+
                 // No stakers in this test, so all fees go to owner.
                 const totalStaked = await TREASURY.totalStaked();
                 expect(totalStaked.eq(0)).to.be.true;
-                
+
                 const expectedToStakers = ethers.BigNumber.from(0);
                 const expectedToOwner = tokenAmount;
-                
+
                 // Deactivate should distribute fees first before deactivating.
                 await expect(TREASURY.connect(owner).deactivatePayoutToken(DEFAULT_PAYOUT_TOKEN.address))
                     .to.emit(TREASURY, "FeesDistributed")
@@ -220,58 +220,58 @@ describe("IgniteTreasury", function () {
                         expectedToStakers,
                         expectedToOwner
                     );
-                
+
                 // Verify fees were distributed.
                 const stateAfterDeactivate = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(stateAfterDeactivate.trackedBalance).to.be.gt(initialTrackedBalance);
                 expect(stateAfterDeactivate.ownerReward).to.be.gt(initialOwnerReward);
                 expect(stateAfterDeactivate.isActive).to.be.false;
-                
+
                 // Verify tracked balance matches the distributed amount.
                 const distributedAmount = stateAfterDeactivate.trackedBalance.sub(initialTrackedBalance);
                 expect(distributedAmount).to.equal(tokenAmount);
-                
+
                 // Verify owner reward increased by the expected amount.
                 const ownerRewardIncrease = stateAfterDeactivate.ownerReward.sub(initialOwnerReward);
                 expect(ownerRewardIncrease).to.equal(expectedToOwner);
             });
 
             it("should call divideFees before deactivating (with stakers, total staked > 0)", async function () {
-                // Stake some tokens first (using otherUser, not owner).
+                // Stake some tokens first (using user1, not owner).
                 const stakeAmount = ethers.utils.parseUnits("1000", 6);
-                await ING_TOKEN.connect(owner).faucetMint(otherUser.address, stakeAmount);
-                await ING_TOKEN.connect(otherUser).approve(TREASURY.address, stakeAmount);
-                await TREASURY.connect(otherUser).stake(stakeAmount);
-                
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount);
+                await TREASURY.connect(user1).stake(stakeAmount);
+
                 // Verify staking worked.
                 const totalStaked = await TREASURY.totalStaked();
                 expect(totalStaked).to.equal(stakeAmount);
-                expect(await TREASURY.staked(otherUser.address)).to.equal(stakeAmount);
-                
+                expect(await TREASURY.staked(user1.address)).to.equal(stakeAmount);
+
                 // Get initial state before adding tokens.
                 const initialState = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 const initialTrackedBalance = initialState.trackedBalance;
                 const initialOwnerReward = initialState.ownerReward;
                 const initialRPS = initialState.stakersRewardPerShare;
-                
+
                 // Add some tokens to the treasury.
                 const tokenAmount = ethers.utils.parseUnits("100", 6);
                 await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, tokenAmount);
-                
+
                 // Verify tokens were added but not yet distributed.
                 const balanceAfterMint = await DEFAULT_PAYOUT_TOKEN.balanceOf(TREASURY.address);
                 expect(balanceAfterMint).to.equal(tokenAmount);
-                
+
                 const stateBeforeDeactivate = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(stateBeforeDeactivate.trackedBalance).to.equal(initialTrackedBalance);
                 expect(stateBeforeDeactivate.ownerReward).to.equal(initialOwnerReward);
                 expect(stateBeforeDeactivate.stakersRewardPerShare).to.equal(initialRPS);
-                
+
                 // Calculate expected distribution (default 70% to stakers, 30% to owner).
                 const stakersShare = await TREASURY.stakersShareDistribution();
                 const expectedToStakers = tokenAmount.mul(stakersShare).div(10000);
                 const expectedToOwner = tokenAmount.sub(expectedToStakers);
-                
+
                 // Deactivate should distribute fees first before deactivating.
                 await expect(TREASURY.connect(owner).deactivatePayoutToken(DEFAULT_PAYOUT_TOKEN.address))
                     .to.emit(TREASURY, "FeesDistributed")
@@ -281,35 +281,35 @@ describe("IgniteTreasury", function () {
                         expectedToStakers,
                         expectedToOwner
                     );
-                
+
                 // Verify fees were distributed.
                 const stateAfterDeactivate = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(stateAfterDeactivate.trackedBalance).to.be.gt(initialTrackedBalance);
                 expect(stateAfterDeactivate.ownerReward).to.be.gt(initialOwnerReward);
                 expect(stateAfterDeactivate.stakersRewardPerShare).to.be.gt(initialRPS);
                 expect(stateAfterDeactivate.isActive).to.be.false;
-                
+
                 // Verify tracked balance increased (equals tokenAmount minus rounding dust).
                 const distributedAmount = stateAfterDeactivate.trackedBalance.sub(initialTrackedBalance);
                 expect(distributedAmount).to.be.gt(0);
                 // Tracked balance should be close to tokenAmount (may be slightly less due to rounding).
                 expect(distributedAmount).to.be.closeTo(tokenAmount, ethers.utils.parseUnits("0.01", 6));
-                
+
                 // Verify owner reward increased by the expected amount (plus rounding dust).
                 const ownerRewardIncrease = stateAfterDeactivate.ownerReward.sub(initialOwnerReward);
                 expect(ownerRewardIncrease).to.be.gte(expectedToOwner);
-                
+
                 // Verify rounding dust goes to owner: ownerRewardIncrease should be >= expectedToOwner.
                 // The difference is the rounding dust from stakers distribution.
                 const roundingDust = ownerRewardIncrease.sub(expectedToOwner);
                 // Verify tracked balance + rounding dust = tokenAmount (accounting for rounding).
                 const totalAccounted = distributedAmount.add(roundingDust);
                 expect(totalAccounted).to.be.closeTo(tokenAmount, ethers.utils.parseUnits("0.001", 6));
-                
+
                 // Verify stakers reward per share increased.
                 const rpsIncrease = stateAfterDeactivate.stakersRewardPerShare.sub(initialRPS);
                 expect(rpsIncrease).to.be.gt(0);
-                
+
                 // Verify the RPS increase matches expected calculation.
                 const expectedRPSIncrease = expectedToStakers.mul(ethers.utils.parseEther("1")).div(totalStaked);
                 // Allow for rounding differences
@@ -325,7 +325,7 @@ describe("IgniteTreasury", function () {
 
             it("should activate payout token when called by owner", async function () {
                 await TREASURY.connect(owner).activatePayoutToken(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(state.isActive).to.be.true;
             });
@@ -355,7 +355,7 @@ describe("IgniteTreasury", function () {
 
             it("should remove payout token when called by owner and conditions are met", async function () {
                 await TREASURY.connect(owner).removePayoutToken(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 expect(await TREASURY.isPayoutToken(DEFAULT_PAYOUT_TOKEN.address)).to.be.false;
             });
 
@@ -379,7 +379,7 @@ describe("IgniteTreasury", function () {
                 // Add tokens and distribute fees.
                 await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, ethers.utils.parseUnits("100", 6));
                 await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 // Withdraw all tracked balance first.
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 if (state.trackedBalance.gt(0)) {
@@ -395,7 +395,7 @@ describe("IgniteTreasury", function () {
                 // Add tokens and distribute fees.
                 await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, ethers.utils.parseUnits("100", 6));
                 await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 // Withdraw all tracked balance but leave owner reward.
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 if (state.trackedBalance.gt(0)) {
@@ -415,10 +415,10 @@ describe("IgniteTreasury", function () {
             it("should sweep inactive payout token when called by owner", async function () {
                 const sweepAmount = ethers.utils.parseUnits("50", 6);
                 await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, sweepAmount);
-                
+
                 const ownerBalanceBefore = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
                 await TREASURY.connect(owner).sweepInactive(DEFAULT_PAYOUT_TOKEN.address, owner.address);
-                
+
                 const ownerBalanceAfter = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
                 expect(ownerBalanceAfter.sub(ownerBalanceBefore)).to.equal(sweepAmount);
             });
@@ -455,14 +455,14 @@ describe("IgniteTreasury", function () {
                 await TREASURY.connect(owner).activatePayoutToken(DEFAULT_PAYOUT_TOKEN.address);
                 await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, ethers.utils.parseUnits("100", 6));
                 await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 // Deactivate again (this will distribute any remaining fees).
                 await TREASURY.connect(owner).deactivatePayoutToken(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 // Verify that tracked balance or owner reward is not zero.
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 expect(state.trackedBalance.gt(0) || state.ownerReward.gt(0)).to.be.true;
-                
+
                 await expect(TREASURY.connect(owner).sweepInactive(DEFAULT_PAYOUT_TOKEN.address, owner.address))
                     .to.be.revertedWith("Payout token must be fully drained");
             });
@@ -478,16 +478,16 @@ describe("IgniteTreasury", function () {
                 const feeAmount = ethers.utils.parseUnits("100", 6);
                 await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, feeAmount);
                 await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
-                
+
                 const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
                 const withdrawAmount = state.ownerReward;
-                
+
                 const ownerBalanceBefore = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
-                
+
                 await expect(TREASURY.connect(owner).withdrawOwnerFees(DEFAULT_PAYOUT_TOKEN.address, owner.address, withdrawAmount))
                     .to.emit(TREASURY, "OwnerFeesWithdrawn")
                     .withArgs(DEFAULT_PAYOUT_TOKEN.address, withdrawAmount, owner.address);
-                
+
                 const ownerBalanceAfter = await DEFAULT_PAYOUT_TOKEN.balanceOf(owner.address);
                 expect(ownerBalanceAfter.sub(ownerBalanceBefore)).to.equal(withdrawAmount);
             });
@@ -515,6 +515,527 @@ describe("IgniteTreasury", function () {
             it("should revert when amount exceeds owner reward", async function () {
                 await expect(TREASURY.connect(owner).withdrawOwnerFees(DEFAULT_PAYOUT_TOKEN.address, owner.address, ethers.utils.parseUnits("1000", 6)))
                     .to.be.revertedWith("Amount must be greater than 0 and less than or equal to the owner reward");
+            });
+        });
+    });
+
+    describe("Staking & Rewards", function () {
+        beforeEach(async function () {
+            await TREASURY.connect(owner).addPayoutToken(DEFAULT_PAYOUT_TOKEN.address);
+        });
+
+        describe("stake", function () {
+            it("should stake tokens", async function () {
+                const amount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, amount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, amount);
+
+                await expect(TREASURY.connect(user1).stake(amount))
+                    .to.emit(TREASURY, "Staked")
+                    .withArgs(user1.address, amount);
+
+                expect(await TREASURY.staked(user1.address)).to.equal(amount);
+                expect(await TREASURY.totalStaked()).to.equal(amount);
+            });
+
+            it("should revert when staking 0 amount", async function () {
+                await expect(TREASURY.connect(user1).stake(0))
+                    .to.be.revertedWith("amount must be non-zero");
+            });
+        });
+
+        describe("unstake", function () {
+            beforeEach(async function () {
+                const amount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, amount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, amount);
+                await TREASURY.connect(user1).stake(amount);
+            });
+
+            it("should unstake tokens", async function () {
+                const amount = ethers.utils.parseUnits("50", 18);
+                await expect(TREASURY.connect(user1).unstake(amount))
+                    .to.emit(TREASURY, "Unstaked")
+                    .withArgs(user1.address, amount);
+
+                expect(await TREASURY.staked(user1.address)).to.equal(ethers.utils.parseUnits("50", 18));
+                expect(await TREASURY.totalStaked()).to.equal(ethers.utils.parseUnits("50", 18));
+            });
+
+            it("should revert when unstaking 0 amount", async function () {
+                await expect(TREASURY.connect(user1).unstake(0))
+                    .to.be.revertedWith("amount must be non-zero");
+            });
+
+            it("should revert when unstaking more than staked", async function () {
+                const amount = ethers.utils.parseUnits("101", 18);
+                await expect(TREASURY.connect(user1).unstake(amount))
+                    .to.be.revertedWith("insufficient staked balance");
+            });
+        });
+
+        describe("divideFees", function () {
+            it("should distribute fees to stakers and owner", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount);
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                const feeAmount = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, feeAmount);
+
+                await expect(TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address))
+                    .to.emit(TREASURY, "FeesDistributed");
+
+                const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
+                expect(state.stakersRewardPerShare).to.be.gt(0);
+                expect(state.ownerReward).to.be.gt(0);
+            });
+
+            it("should distribute all fees to owner if no stakers", async function () {
+                const feeAmount = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, feeAmount);
+
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const state = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
+                expect(state.stakersRewardPerShare).to.equal(0);
+                expect(state.ownerReward).to.equal(feeAmount);
+            });
+        });
+
+        describe("withdrawFees", function () {
+            it("should withdraw fees", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount);
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                const feeAmount = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, feeAmount);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const pending = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                expect(pending).to.be.gt(0);
+
+                await expect(TREASURY.connect(user1).withdrawFees(DEFAULT_PAYOUT_TOKEN.address))
+                    .to.emit(TREASURY, "FeesWithdrawn")
+                    .withArgs(user1.address, DEFAULT_PAYOUT_TOKEN.address, pending);
+
+                expect(await DEFAULT_PAYOUT_TOKEN.balanceOf(user1.address)).to.equal(pending);
+            });
+
+            it("should revert when no fees to withdraw", async function () {
+                await expect(TREASURY.connect(user1).withdrawFees(DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.revertedWith("No fees to withdraw");
+            });
+        });
+
+        describe("View Functions", function () {
+            it("should return correct pending rewards", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount);
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                const feeAmount = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, feeAmount);
+
+                // Check pending rewards before divideFees (should include undistributed fees)
+                const pendingBefore = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                expect(pendingBefore).to.be.gt(0);
+
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const pendingAfter = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                expect(pendingAfter).to.equal(pendingBefore);
+            });
+
+            it("should return correct user staking share", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount);
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                expect(await TREASURY.getUserStakingShare(user1.address)).to.equal(10000); // 100%
+            });
+
+            it("should return correct undistributed fees", async function () {
+                const feeAmount = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, feeAmount);
+
+                expect(await TREASURY.getUndistributedFees(DEFAULT_PAYOUT_TOKEN.address)).to.equal(feeAmount);
+            });
+        });
+    });
+
+    describe("Scenarios", function () {
+        beforeEach(async function () {
+            await TREASURY.connect(owner).addPayoutToken(DEFAULT_PAYOUT_TOKEN.address);
+        });
+
+        describe("Multi-User Reward Distribution", function () {
+            it("should distribute rewards correctly between multiple users", async function () {
+                // 1. User A stakes 100
+                const stakeAmountA = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmountA);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmountA);
+                await TREASURY.connect(user1).stake(stakeAmountA);
+
+                // 2. Distribute 100 reward tokens (User A gets 100% of staker share)
+                const rewardAmount1 = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, rewardAmount1);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const stakersShare = await TREASURY.stakersShareDistribution();
+                const expectedRewardA1 = rewardAmount1.mul(stakersShare).div(10000);
+
+                // Check User A pending rewards
+                expect(await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(expectedRewardA1, ethers.utils.parseUnits("0.0001", 6));
+
+                // 3. User B stakes 100 (Total Staked = 200)
+                const stakeAmountB = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user2.address, stakeAmountB);
+                await ING_TOKEN.connect(user2).approve(TREASURY.address, stakeAmountB);
+                await TREASURY.connect(user2).stake(stakeAmountB);
+
+                // 4. Distribute 100 reward tokens (User A and B split 50/50 of staker share)
+                const rewardAmount2 = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, rewardAmount2);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const expectedRewardTotal2 = rewardAmount2.mul(stakersShare).div(10000);
+                const expectedRewardPerUser2 = expectedRewardTotal2.div(2);
+
+                // Check User A total rewards (First batch + Second batch)
+                const totalExpectedA = expectedRewardA1.add(expectedRewardPerUser2);
+                expect(await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(totalExpectedA, ethers.utils.parseUnits("0.0001", 6));
+
+                // Check User B total rewards (Only second batch)
+                expect(await TREASURY.pendingRewards(user2.address, DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(expectedRewardPerUser2, ethers.utils.parseUnits("0.0001", 6));
+
+                // 5. User A unstakes everything
+                await TREASURY.connect(user1).unstake(stakeAmountA);
+
+                // 6. Distribute 100 reward tokens (User B gets 100% of staker share)
+                const rewardAmount3 = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, rewardAmount3);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const expectedRewardB3 = rewardAmount3.mul(stakersShare).div(10000);
+
+                // Check User B total rewards (Previous + New batch)
+                const totalExpectedB = expectedRewardPerUser2.add(expectedRewardB3);
+                expect(await TREASURY.pendingRewards(user2.address, DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(totalExpectedB, ethers.utils.parseUnits("0.0001", 6));
+            });
+
+            it("should handle 4 users with dynamic staking and proportional rewards", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+
+                // Mint tokens for all users
+                for (const user of [user1, user2, user3, user4]) {
+                    await ING_TOKEN.connect(owner).faucetMint(user.address, stakeAmount.mul(3));
+                    await ING_TOKEN.connect(user).approve(TREASURY.address, stakeAmount.mul(3));
+                }
+
+                // Round 1: user1 stakes 100
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                const reward1 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward1);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // Round 2: user2 stakes 100 (total: 200)
+                await TREASURY.connect(user2).stake(stakeAmount);
+
+                const reward2 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward2);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // Round 3: user3 stakes 200 (total: 400)
+                await TREASURY.connect(user3).stake(stakeAmount.mul(2));
+
+                const reward3 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward3);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // Round 4: user4 stakes 100 (total: 500)
+                await TREASURY.connect(user4).stake(stakeAmount);
+
+                const reward4 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward4);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const stakersShare = await TREASURY.stakersShareDistribution();
+
+                // Verify each user's rewards
+                const pending1 = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                const pending2 = await TREASURY.pendingRewards(user2.address, DEFAULT_PAYOUT_TOKEN.address);
+                const pending3 = await TREASURY.pendingRewards(user3.address, DEFAULT_PAYOUT_TOKEN.address);
+                const pending4 = await TREASURY.pendingRewards(user4.address, DEFAULT_PAYOUT_TOKEN.address);
+
+                // user1: 100% of R1 + 50% of R2 + 25% of R3 + 20% of R4
+                // user2: 50% of R2 + 25% of R3 + 20% of R4
+                // user3: 50% of R3 + 40% of R4
+                // user4: 20% of R4
+
+                expect(pending1).to.be.gt(pending2);
+                expect(pending2).to.be.gt(pending3);
+                expect(pending3).to.be.gt(pending4);
+                expect(pending4).to.be.gt(0);
+            });
+
+            it("should handle users entering and exiting at different times", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+
+                // Setup: Mint tokens
+                for (const user of [user1, user2, user3]) {
+                    await ING_TOKEN.connect(owner).faucetMint(user.address, stakeAmount.mul(2));
+                    await ING_TOKEN.connect(user).approve(TREASURY.address, stakeAmount.mul(2));
+                }
+
+                // user1 and user2 stake
+                await TREASURY.connect(user1).stake(stakeAmount);
+                await TREASURY.connect(user2).stake(stakeAmount);
+
+                // Distribute rewards
+                const reward1 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward1);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const pending1After1 = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                const pending2After1 = await TREASURY.pendingRewards(user2.address, DEFAULT_PAYOUT_TOKEN.address);
+
+                // Should be equal (50/50 split)
+                expect(pending1After1).to.be.closeTo(pending2After1, ethers.utils.parseUnits("0.01", 6));
+
+                // user1 exits
+                await TREASURY.connect(user1).unstake(stakeAmount);
+
+                // user3 enters
+                await TREASURY.connect(user3).stake(stakeAmount);
+
+                // Distribute more rewards
+                const reward2 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward2);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // user1 should have claimable rewards from before (not pending since unstaked)
+                const pending1After2 = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                expect(pending1After2).to.be.gt(0); // Still has claimable from before unstake
+
+                // user2 and user3 should split the new rewards
+                const pending2After2 = await TREASURY.pendingRewards(user2.address, DEFAULT_PAYOUT_TOKEN.address);
+                const pending3After2 = await TREASURY.pendingRewards(user3.address, DEFAULT_PAYOUT_TOKEN.address);
+
+                expect(pending2After2).to.be.gt(pending1After2); // user2 got more rewards
+                expect(pending3After2).to.be.gt(0); // user3 got rewards
+            });
+
+            it("should handle partial unstaking by multiple users", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+
+                // Setup: All users stake 100
+                for (const user of [user1, user2, user3, user4]) {
+                    await ING_TOKEN.connect(owner).faucetMint(user.address, stakeAmount);
+                    await ING_TOKEN.connect(user).approve(TREASURY.address, stakeAmount);
+                    await TREASURY.connect(user).stake(stakeAmount);
+                }
+
+                // Distribute rewards (all equal)
+                const reward1 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward1);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // user1 and user2 unstake 50%
+                await TREASURY.connect(user1).unstake(stakeAmount.div(2));
+                await TREASURY.connect(user2).unstake(stakeAmount.div(2));
+
+                // Distribute more rewards
+                const reward2 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward2);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // user3 and user4 should get more of reward2 than user1 and user2
+                const pending1 = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                const pending3 = await TREASURY.pendingRewards(user3.address, DEFAULT_PAYOUT_TOKEN.address);
+
+                expect(pending3).to.be.gt(pending1);
+            });
+
+            it("should handle all users unstaking and restaking", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+
+                // Setup
+                for (const user of [user1, user2]) {
+                    await ING_TOKEN.connect(owner).faucetMint(user.address, stakeAmount.mul(2));
+                    await ING_TOKEN.connect(user).approve(TREASURY.address, stakeAmount.mul(2));
+                    await TREASURY.connect(user).stake(stakeAmount);
+                }
+
+                // Distribute rewards
+                const reward1 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward1);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // All unstake
+                await TREASURY.connect(user1).unstake(stakeAmount);
+                await TREASURY.connect(user2).unstake(stakeAmount);
+
+                expect(await TREASURY.totalStaked()).to.equal(0);
+
+                // Distribute rewards (should go to owner)
+                const reward2 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward2);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const stateAfterNoStakers = await TREASURY.payoutTokenState(DEFAULT_PAYOUT_TOKEN.address);
+                // stakersRewardPerShare stays at previous value when totalStaked is 0
+                expect(stateAfterNoStakers.ownerReward).to.be.gt(0); // All of reward2 goes to owner
+
+                // Users restake
+                await TREASURY.connect(user1).stake(stakeAmount);
+                await TREASURY.connect(user2).stake(stakeAmount);
+
+                // Distribute new rewards
+                const reward3 = ethers.utils.parseUnits("1000", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward3);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // Both should get equal share of reward3 only
+                const pending1 = await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address);
+                const pending2 = await TREASURY.pendingRewards(user2.address, DEFAULT_PAYOUT_TOKEN.address);
+
+                expect(pending1).to.be.closeTo(pending2, ethers.utils.parseUnits("0.01", 6));
+                expect(pending1).to.be.gt(0);
+            });
+        });
+
+        describe("Multi-Token Rewards", function () {
+            it("should accumulate rewards in multiple tokens", async function () {
+                // Add second payout token
+                await TREASURY.connect(owner).addPayoutToken(OTHER_PAYOUT_TOKEN.address);
+
+                // User stakes
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount);
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                // Distribute Token A
+                const rewardA = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, rewardA);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // Distribute Token B
+                const rewardB = ethers.utils.parseUnits("200", 6);
+                await OTHER_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, rewardB);
+                await TREASURY.connect(caller).divideFees(OTHER_PAYOUT_TOKEN.address);
+
+                const stakersShare = await TREASURY.stakersShareDistribution();
+                const expectedA = rewardA.mul(stakersShare).div(10000);
+                const expectedB = rewardB.mul(stakersShare).div(10000);
+
+                // Verify pending rewards
+                expect(await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(expectedA, ethers.utils.parseUnits("0.0001", 6));
+                expect(await TREASURY.pendingRewards(user1.address, OTHER_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(expectedB, ethers.utils.parseUnits("0.0001", 6));
+
+                // Withdraw Token A
+                await TREASURY.connect(user1).withdrawFees(DEFAULT_PAYOUT_TOKEN.address);
+                expect(await DEFAULT_PAYOUT_TOKEN.balanceOf(user1.address)).to.be.closeTo(expectedA, ethers.utils.parseUnits("0.0001", 6));
+
+                // Token B should still be pending
+                expect(await TREASURY.pendingRewards(user1.address, OTHER_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(expectedB, ethers.utils.parseUnits("0.0001", 6));
+            });
+        });
+
+        describe("Staking/Unstaking Cycles (Anti-Dilution)", function () {
+            it("should correctly calculate rewards after partial unstaking and restaking", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount.mul(2));
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount.mul(2));
+
+                // 1. Stake 100
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                // 2. Distribute rewards
+                const reward1 = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward1);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // 3. Unstake 50
+                await TREASURY.connect(user1).unstake(stakeAmount.div(2));
+
+                // 4. Distribute rewards (User has 50 staked)
+                const reward2 = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward2);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                // 5. Stake 50 again (User has 100 staked)
+                await TREASURY.connect(user1).stake(stakeAmount.div(2));
+
+                // 6. Distribute rewards (User has 100 staked)
+                const reward3 = ethers.utils.parseUnits("100", 6);
+                await DEFAULT_PAYOUT_TOKEN.connect(owner).faucetMint(TREASURY.address, reward3);
+                await TREASURY.connect(caller).divideFees(DEFAULT_PAYOUT_TOKEN.address);
+
+                const stakersShare = await TREASURY.stakersShareDistribution();
+
+                // Expected:
+                // Round 1: 100% of reward1
+                // Round 2: 100% of reward2 (since they are the only staker, even with less stake)
+                // Round 3: 100% of reward3
+                // Note: If there were other stakers, the share would change. Since they are alone, they get all staker rewards.
+
+                const totalExpected = reward1.add(reward2).add(reward3).mul(stakersShare).div(10000);
+
+                expect(await TREASURY.pendingRewards(user1.address, DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.closeTo(totalExpected, ethers.utils.parseUnits("0.0001", 6));
+            });
+        });
+
+        describe("Pausable Interactions", function () {
+            it("should revert actions when paused and succeed when unpaused", async function () {
+                const stakeAmount = ethers.utils.parseUnits("100", 18);
+                await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount);
+                await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount);
+
+                // Pause
+                await TREASURY.connect(owner).pause();
+
+                // Attempt stake
+                await expect(TREASURY.connect(user1).stake(stakeAmount))
+                    .to.be.reverted;
+
+                // Unpause
+                await TREASURY.connect(owner).unpause();
+
+                // Stake succeeds
+                await TREASURY.connect(user1).stake(stakeAmount);
+
+                // Pause
+                await TREASURY.connect(owner).pause();
+
+                // Attempt unstake
+                await expect(TREASURY.connect(user1).unstake(stakeAmount))
+                    .to.be.reverted;
+
+                // Attempt withdrawFees
+                await expect(TREASURY.connect(user1).withdrawFees(DEFAULT_PAYOUT_TOKEN.address))
+                    .to.be.reverted;
+
+                // Unpause
+                await TREASURY.connect(owner).unpause();
+
+                // Unstake succeeds
+                await TREASURY.connect(user1).unstake(stakeAmount);
             });
         });
     });

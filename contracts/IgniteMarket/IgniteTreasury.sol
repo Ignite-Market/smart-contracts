@@ -294,7 +294,7 @@ contract IgniteTreasury is Ownable, ReentrancyGuard, Pausable {
 	 *
 	 * @param amount Amount of stake tokens to stake.
 	 */
-	function stake(uint256 amount) external nonReentrant {
+	function stake(uint256 amount) external nonReentrant whenNotPaused {
 		require(amount > 0, "amount must be non-zero");
 
 		// Update the user's claimable rewards before stake size changes.
@@ -316,7 +316,7 @@ contract IgniteTreasury is Ownable, ReentrancyGuard, Pausable {
 	 *
 	 * @param amount Amount of stake tokens to unstake.
 	 */
-	function unstake(uint256 amount) external nonReentrant {
+	function unstake(uint256 amount) external nonReentrant whenNotPaused {
 		require(amount > 0, "amount must be non-zero");
 		require(staked[msg.sender] >= amount, "insufficient staked balance");
 
@@ -402,7 +402,7 @@ contract IgniteTreasury is Ownable, ReentrancyGuard, Pausable {
 	 *
 	 * @param payoutToken Address of the payout token to withdraw fees for.
 	 */
-    function withdrawFees(address payoutToken) external nonReentrant {
+    function withdrawFees(address payoutToken) external nonReentrant whenNotPaused {
         require(isPayoutToken[payoutToken], "Payout token does not exist");
 
         // Update the user's claimable rewards: Pending -> Claimable.

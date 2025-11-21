@@ -15,6 +15,7 @@ contract IgniteTreasury is Ownable, ReentrancyGuard, Pausable {
     // Constants & Types
 	uint256 private constant PRECISION = 1e18;    // Precision for decimal calculations - 1e18 precision.
 	uint16 public constant BASIS_POINTS = 10_000; // Basis point for percentage calculations - 100%.
+	uint8 public constant MAX_PAYOUT_TOKENS = 25; // Maximum number of payout tokens allowed.
 
     // ─────────────────────────────────────────────────────────────────────────────
     // Events
@@ -191,18 +192,12 @@ contract IgniteTreasury is Ownable, ReentrancyGuard, Pausable {
      * @notice ** The payout token must be an standard compliant ERC20 token (no fees on transfers, no balance rebasing). **
      * @notice **                                                                                                         **   
      * @notice *************************************************************************************************************
-     * @notice **
-     * @notice **
-     * @notice ********************************* IMPORTANT **********************************
-     * @notice **                                                                          **
-     * @notice ** Be mindful of total number of payout tokens to prevent gas limit errors. **
-     * @notice **                                                                          **   
-     * @notice ******************************************************************************
 	 */
 	function addPayoutToken(address payoutToken) external onlyOwner {
 		require(payoutToken != address(0), "NA not allowed");
         require(payoutToken != address(stakeToken), "Stake token cannot be added as a payout token");
     	require(!isPayoutToken[payoutToken], "Payout token already exists");
+    	require(payoutTokens.length < MAX_PAYOUT_TOKENS, "Maximum payout tokens reached");
 
 
     	isPayoutToken[payoutToken] = true;

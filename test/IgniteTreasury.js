@@ -1039,4 +1039,90 @@ describe("IgniteTreasury", function () {
             });
         });
     });
+
+    describe("Payout Token Limit", function () {
+        it("should allow adding tokens up to MAX_PAYOUT_TOKENS", async function () {
+            const mockCoinFactory = await ethers.getContractFactory("MockCoin");
+            const maxTokens = await TREASURY.MAX_PAYOUT_TOKENS();
+
+            // Add tokens up to the limit
+            for (let i = 0; i < maxTokens; i++) {
+                const token = await mockCoinFactory.deploy();
+                await token.deployed();
+                await TREASURY.connect(owner).addPayoutToken(token.address);
+            }
+
+            // Verify we can query the last token added (index maxTokens - 1)
+            const lastToken = await TREASURY.payoutTokens(maxTokens - 1);
+            expect(lastToken).to.not.equal(ethers.constants.AddressZero);
+        });
+
+        it("should revert when adding token beyond MAX_PAYOUT_TOKENS", async function () {
+            const mockCoinFactory = await ethers.getContractFactory("MockCoin");
+            const maxTokens = await TREASURY.MAX_PAYOUT_TOKENS();
+
+            // Fill up to the limit
+            for (let i = 0; i < maxTokens; i++) {
+                const token = await mockCoinFactory.deploy();
+                await token.deployed();
+                await TREASURY.connect(owner).addPayoutToken(token.address);
+            }
+
+            // Try to add one more
+            const extraToken = await mockCoinFactory.deploy();
+            await extraToken.deployed();
+
+            await expect(
+                TREASURY.connect(owner).addPayoutToken(extraToken.address)
+            ).to.be.revertedWith("Maximum payout tokens reached");
+        });
+
+        it("should handle stake/unstake operations efficiently with max tokens", async function () {
+            const mockCoinFactory = await ethers.getContractFactory("MockCoin");
+            const maxTokens = await TREASURY.MAX_PAYOUT_TOKENS();
+
+            // Add max tokens
+            for (let i = 0; i < maxTokens; i++) {
+                const token = await mockCoinFactory.deploy();
+                await token.deployed();
+                await TREASURY.connect(owner).addPayoutToken(token.address);
+            }
+
+            // Test stake with max tokens
+            const stakeAmount = ethers.utils.parseUnits("100", 18);
+            await ING_TOKEN.connect(owner).faucetMint(user1.address, stakeAmount.mul(2));
+            await ING_TOKEN.connect(user1).approve(TREASURY.address, stakeAmount.mul(2));
+
+            const stakeTx = await TREASURY.connect(user1).stake(stakeAmount);
+            const stakeReceipt = await stakeTx.wait();
+
+            // Gas should be reasonable (adjust threshold as needed)
+            expect(stakeReceipt.gasUsed).to.be.lt(2000000); // 2M gas limit for stake
+
+            // Test unstake with max tokens
+            const unstakeTx = await TREASURY.connect(user1).unstake(stakeAmount);
+            const unstakeReceipt = await unstakeTx.wait();
+
+            expect(unstakeReceipt.gasUsed).to.be.lt(2000000); // 2M gas limit for unstake
+        });
+
+        it("should allow removing and re-adding tokens within limit", async function () {
+            const mockCoinFactory = await ethers.getContractFactory("MockCoin");
+
+            const token1 = await mockCoinFactory.deploy();
+            await token1.deployed();
+            await TREASURY.connect(owner).addPayoutToken(token1.address);
+
+            // Deactivate and remove token
+            await TREASURY.connect(owner).deactivatePayoutToken(token1.address);
+            await TREASURY.connect(owner).removePayoutToken(token1.address);
+
+            // Should be able to add a new token
+            const token2 = await mockCoinFactory.deploy();
+            await token2.deployed();
+            await TREASURY.connect(owner).addPayoutToken(token2.address);
+
+            expect(await TREASURY.isPayoutToken(token2.address)).to.be.true;
+        });
+    });
 });

@@ -118,6 +118,7 @@ describe('FixedProductMarketMakerAmounts', function() {
                 treasury.address,
                 fundingThreshold,
                 endTime,
+                10, // buySellCapPercent (10%)
                 salt
             );
 
@@ -238,6 +239,7 @@ describe('FixedProductMarketMakerAmounts', function() {
                 treasury.address,
                 fundingThreshold,
                 endTime,
+                10, // buySellCapPercent (10%)
                 salt
             );
 
@@ -455,6 +457,7 @@ describe('FixedProductMarketMakerAmounts', function() {
                 treasury.address,
                 fundingThreshold,   
                 endTime,
+                10, // buySellCapPercent (10%)
                 salt
             );
 
@@ -654,6 +657,7 @@ describe('FixedProductMarketMakerAmounts', function() {
                 treasury.address,
                 fundingThreshold,
                 endTime,
+                10, // buySellCapPercent (10%)
                 salt
             );
 

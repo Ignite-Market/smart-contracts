@@ -33,6 +33,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
     uint public treasuryPercent;
     uint public fundingThreshold;
     uint public endTime;
+    uint public buySellCapPercent;
     uint public constant percentUL = 10000;
 
     uint[] public outcomeSlotCounts;
@@ -83,11 +84,13 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         address _treasury,
         uint _fundingThreshold,
         uint _endTime,
+        uint _buySellCapPercent,
         address _creator
     ) external initializer {
         require(address(conditionalTokens) == address(0), "already initialized");
         require(_treasuryPercent <= 10000, "treasury percent must be <= 10000");
         require(_fee < ONE, "fee must be less than or equal to ONE");
+        require(_buySellCapPercent > 0, "buy/sell cap percent must be greater than 0");
         __ERC20_init(NAME, SYMBOL); // initialize ERC20 properly
         conditionalTokens = _conditionalTokens;
         collateralToken = _collateralToken;
@@ -96,6 +99,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
         treasury = _treasury;
         fundingThreshold = _fundingThreshold;
         endTime = _endTime;
+        buySellCapPercent = _buySellCapPercent;
         creator = _creator;
 
         for (uint i = 0; i < conditions.length; i++) {
@@ -326,7 +330,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
 
     function buy(uint investmentAmount, uint outcomeIndex, uint minOutcomeTokensToBuy) external nonReentrant onlyWhenSetupComplete {
         require(canTrade(), "trading not allowed");
-        require((investmentAmount * 100) / currentLiquidity <= 10, "amount can be up to 10% of currentLiquidity");
+        require((investmentAmount * 100) / currentLiquidity <= buySellCapPercent, "amount exceeds buy cap");
 
         uint outcomeTokensToBuy = calcBuyAmount(investmentAmount, outcomeIndex);
         require(outcomeTokensToBuy >= minOutcomeTokensToBuy, "minimum buy amount not reached");
@@ -347,7 +351,7 @@ contract FixedProductMarketMaker is ERC20Upgradeable, IERC1155Receiver, Reentran
 
     function sell(uint returnAmount, uint outcomeIndex, uint maxOutcomeTokensToSell) external nonReentrant onlyWhenSetupComplete {
         require(canTrade(), "trading not allowed");
-        require((returnAmount * 100) / currentLiquidity <= 10, "amount can be up to 10% of currentLiquidity");
+        require((returnAmount * 100) / currentLiquidity <= buySellCapPercent, "amount exceeds sell cap");
 
         uint outcomeTokensToSell = calcSellAmount(returnAmount, outcomeIndex);
         require(outcomeTokensToSell <= maxOutcomeTokensToSell, "maximum sell amount exceeded");

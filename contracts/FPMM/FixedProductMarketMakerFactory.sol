@@ -19,7 +19,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
         uint treasuryPercent,
         address treasury,
         uint fundingThreshold,
-        uint endTime
+        uint endTime,
+        uint buySellCapPercent
     );
 
     FixedProductMarketMaker public implementationMaster;
@@ -37,8 +38,9 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
             uint treasuryPercent_,
             address treasury_,
             uint fundingThreshold_,
-            uint endTime_
-        ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint, uint, address, uint, uint));
+            uint endTime_,
+            uint buySellCapPercent_
+        ) = abi.decode(consData, (ConditionalTokens, IERC20, bytes32[], uint, uint, address, uint, uint, uint));
 
         FixedProductMarketMaker(address(this)).initializeBase(
             conditionalTokens_,
@@ -49,6 +51,7 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
             treasury_,
             fundingThreshold_,
             endTime_,
+            buySellCapPercent_,
             msg.sender
         );
     }
@@ -62,6 +65,7 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
         address treasury_,
         uint fundingThreshold_,
         uint endTime_,
+        uint buySellCapPercent_,
         bytes32 salt
     ) external returns (FixedProductMarketMaker) {
         bytes memory initData = _generateInitData(
@@ -73,6 +77,7 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
             treasury_,
             fundingThreshold_,
             endTime_,
+            buySellCapPercent_,
             msg.sender
         );
 
@@ -92,7 +97,8 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
             treasuryPercent_,
             treasury_,
             fundingThreshold_,
-            endTime_
+            endTime_,
+            buySellCapPercent_
         );
 
         return fpm;
@@ -127,6 +133,7 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
         address treasury_,
         uint fundingThreshold_,
         uint endTime_,
+        uint buySellCapPercent_,
         address creator_
     ) internal pure returns (bytes memory) {
         return abi.encodeWithSelector(
@@ -139,6 +146,7 @@ contract FixedProductMarketMakerFactory is ConstructedCloneFactory {
             treasury_,
             fundingThreshold_,
             endTime_,
+            buySellCapPercent_,
             creator_
         );
     }

@@ -53,6 +53,7 @@ describe("FixedProductMarketMaker - position ordering", function () {
       treasury.address,
       fundingThreshold,
       endTime,
+      10, // buySellCapPercent (10%)
       salt
     );
     const receipt = await tx.wait();

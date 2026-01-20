@@ -61,7 +61,8 @@ describe('FixedProductMarketMaker', function() {
             treasuryPercent,
             treasury.address,
             fundingThreshold,
-            endTime
+            endTime,
+            10 // buySellCapPercent (10%)
         ];
     
         // Compute salt off-chain (should match the logic you use consistently)
@@ -107,6 +108,7 @@ describe('FixedProductMarketMaker', function() {
             treasury.address,
             fundingThreshold,
             endTime,
+            10, // buySellCapPercent (10%)
             salt
           );
     
@@ -448,6 +450,7 @@ describe('FixedProductMarketMaker Multiple Conditions', function() {
                 treasury.address,
                 fundingThreshold,
                 endTime,
+                10, // buySellCapPercent (10%)
                 salt
             );
 

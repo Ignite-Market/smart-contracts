@@ -23,7 +23,7 @@ contract MockCoin is ERC20, AccessControl {
         _mint(account, amount);
     }
 
-    function faucetMint(address account, uint256 amount) external onlyRole(MINTER_ROLE) {
+    function faucetMint(address account, uint256 amount) external {
         _mint(account, amount);
     }
 

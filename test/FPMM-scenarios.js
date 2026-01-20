@@ -180,6 +180,7 @@ describe('FixedProductMarketMakerScenarios', function() {
                 treasury.address,
                 fundingThreshold,
                 endTime,
+                10, // buySellCapPercent (10%)
                 salt
             );
 

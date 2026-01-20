@@ -49,6 +49,7 @@ describe("FixedProductMarketMaker – full cycle value distribution", function (
       treasury.address,
       fundingThreshold,
       endTime,
+      10, // buySellCapPercent (10%)
       salt
     );
     const receipt = await tx.wait();

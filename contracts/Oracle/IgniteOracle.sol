@@ -69,21 +69,27 @@ contract IgniteOracle is AccessControl {
     mapping(bytes32 => bool) public jqProcessed;
 
     uint256 public noOfVoters;
+    address[] public voters;
     mapping(bytes32 => mapping(address => bool)) public hasVoted; // question => voter => true/false
     mapping(bytes32 => mapping(uint256 => uint256)) public questionOutcomeVotes; // question => outcome => uint256
+    mapping(bytes32 => uint256) public questionTotalVotes; // question => total votes cast
 
     uint256 public minVotes; // minimal required votes in case of voting
+    uint256 public minApiSources; // minimal required API sources
 
     constructor(
         address _admin,
         address _conditionalTokens,
-        uint256 _minVotes
+        uint256 _minVotes,
+        uint256 _minApiSources
     ) {
         require(_conditionalTokens != address(0), "NA not allowed");
         conditionalTokens = IConditionalTokens(_conditionalTokens);
+        require(_minApiSources > 0, "minApiSources must be greater than 0");
+        require(_minVotes > 0, "minVotes must be greater than 0");
 
-        require(_minVotes >= 3, "Min votes < 3");
         minVotes = _minVotes;
+        minApiSources = _minApiSources;
 
         require(_admin != address(0), "NA not allowed");
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
@@ -126,7 +132,7 @@ contract IgniteOracle is AccessControl {
         // If resolution is automatic require API sources.
         if (automatic) {
             require(urlAr.length == postprocessJqAr.length, "Array mismatch");
-            require(urlAr.length >= 3, "Oracle requires at least 3 API sources");
+            require(urlAr.length >= minApiSources, "Oracle requires at least minApiSources API sources");
         }
 
         question[questionId] = Question({
@@ -185,6 +191,7 @@ contract IgniteOracle is AccessControl {
 
         // Get FDC verification contract.
         IFdcVerification fdcVerification = ContractRegistry.getFdcVerification();
+        require(address(fdcVerification) != address(0), "FDC verification contract not available");
 
         // Process each API result proof.
         bytes32 jqKey;
@@ -204,7 +211,7 @@ contract IgniteOracle is AccessControl {
 
             // Check if proof actually is valid.
             require(
-                fdcVerification.verifyJsonApi(proof),
+                fdcVerification.verifyWeb2Json(proof),
                 "Invalid proof (provided)"
             );
 
@@ -217,6 +224,8 @@ contract IgniteOracle is AccessControl {
             // Find winner ID.
             uint256 winnerId = type(uint256).max;
             uint256 jqProcessedCount;
+            // Safety check: ensure apiSources is not zero to prevent division by zero
+            require(qData.apiSources > 0, "API sources cannot be zero");
             for (uint256 i = 0; i < qData.outcomeSlotCount; i++) {
                 jqProcessedCount += qData.apiResolution[i];
                 if (qData.apiResolution[i] * 100 / qData.apiSources >= qData.consensusPercent) {
@@ -262,10 +271,11 @@ contract IgniteOracle is AccessControl {
 
         require(outcomeIdx < qData.outcomeSlotCount, "Invalid outcomeIdx");
         questionOutcomeVotes[questionId][outcomeIdx] += 1;
+        questionTotalVotes[questionId] += 1;
 
         if (
             questionOutcomeVotes[questionId][outcomeIdx] >= minVotes && 
-            questionOutcomeVotes[questionId][outcomeIdx] * 100 / noOfVoters >= qData.consensusPercent
+            questionOutcomeVotes[questionId][outcomeIdx] * 100 / questionTotalVotes[questionId] >= qData.consensusPercent
         ) {
             _finalizeAndReportPayout(questionId, outcomeIdx);
         }
@@ -298,6 +308,7 @@ contract IgniteOracle is AccessControl {
     function grantRole(bytes32 role, address account) public override onlyRole(getRoleAdmin(role)) {
         if(role == VOTER_ROLE && !hasRole(VOTER_ROLE, account)) {
             noOfVoters += 1;
+            voters.push(account);
         }
         _grantRole(role, account);
     }
@@ -312,6 +323,7 @@ contract IgniteOracle is AccessControl {
     function revokeRole(bytes32 role, address account) public override onlyRole(getRoleAdmin(role)) {
         if(role == VOTER_ROLE && hasRole(VOTER_ROLE, account)) {
             noOfVoters -= 1;
+            _removeVoter(account);
         }
         _revokeRole(role, account);
     }
@@ -330,6 +342,7 @@ contract IgniteOracle is AccessControl {
 
         if(role == VOTER_ROLE && hasRole(VOTER_ROLE, callerConfirmation)) {
             noOfVoters -= 1;
+            _removeVoter(callerConfirmation);
         }
 
         _revokeRole(role, callerConfirmation);
@@ -359,5 +372,38 @@ contract IgniteOracle is AccessControl {
         qData.status = Status.VOTING;
 
         emit VotingForced(msg.sender, questionId);
+    }
+
+    /**
+     * @dev Updates the minimum required API sources.
+     * @param _minApiSources New minimum API sources value.
+     */
+    function setMinApiSources(uint256 _minApiSources) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_minApiSources > 0, "minApiSources must be greater than 0");
+        minApiSources = _minApiSources;
+    }
+
+    /**
+     * @dev Updates the minimum required votes.
+     * @param _minVotes New minimum votes value.
+     */
+    function setMinVotes(uint256 _minVotes) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_minVotes > 0, "minVotes must be greater than 0");
+        minVotes = _minVotes;
+    }
+
+    /**
+     * @dev Internal helper function to remove a voter from the voters array.
+     * @param account Address of the voter to remove.
+     */
+    function _removeVoter(address account) private {
+        uint256 length = voters.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (voters[i] == account) {
+                voters[i] = voters[length - 1];
+                voters.pop();
+                return;
+            }
+        }
     }
 }

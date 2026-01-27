@@ -36,6 +36,7 @@ describe("IgniteOracle", function () {
             owner.address, // admin
             CONDITIONAL_TOKENS.address, // conditionalTokens
             3, // minVotes
+            3, // minApiSources
         );
         await ORACLE.deployed();
 
@@ -455,7 +456,7 @@ describe("IgniteOracle", function () {
                         curDate + 100,
                         true
                     )
-                ).to.be.revertedWith('Oracle requires at least 3 API sources');
+                ).to.be.revertedWith('Oracle requires at least minApiSources API sources');
             });
 
             it('should not initialize question if API sources are duplicated', async () => {
